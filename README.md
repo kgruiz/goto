@@ -40,7 +40,7 @@ to --rm proj                             # remove
 
 ## Features
 
-- Keyword shortcuts stored in `~/.to_dirs`; expirations in `~/.to_dirs_meta`; recents in `~/.to_dirs_recent`; sort preference in `~/.to_zsh_config`.
+- Keyword shortcuts stored in `~/.goto/to_dirs`; expirations in `~/.goto/to_dirs_meta`; recents in `~/.goto/to_dirs_recent`; sort preference in `~/.goto/to_zsh_config`.
 - Longest-prefix resolution for `keyword/any/depth`.
 - Automatic directory creation (opt out with `--no-create`).
 - Recents tracking for `recent` sort mode.
@@ -99,7 +99,7 @@ Zsh uses dynamic completion hooks for path-aware keyword + subpath behavior.
 
 ## Configuration details
 
-- Files: `~/.to_dirs`, `~/.to_dirs_meta`, `~/.to_dirs_recent`, `~/.to_zsh_config`.
+- Files: `~/.goto/to_dirs`, `~/.goto/to_dirs_meta`, `~/.goto/to_dirs_recent`, `~/.goto/to_zsh_config`.
 - Env overrides (useful for tests): `TO_CONFIG_FILE`, `TO_CONFIG_META_FILE`, `TO_USER_CONFIG_FILE`, `TO_RECENT_FILE`.
 - Sorting: `alpha` (natural), `added` (file order), `recent` (uses recents file).
 

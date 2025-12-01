@@ -88,11 +88,12 @@ if [ -n "$EXISTING_BIN" ] && [ "$EXISTING_BIN" != "$CARGO_HOME/bin/to" ]; then
   fi
 fi
 
+CONFIG_ROOT="${HOME}/.goto"
 CONFIG_FILES=(
-  "${TO_CONFIG_FILE:-$HOME/.to_dirs}"
-  "${TO_CONFIG_META_FILE:-$HOME/.to_dirs_meta}"
-  "${TO_USER_CONFIG_FILE:-$HOME/.to_zsh_config}"
-  "${TO_RECENT_FILE:-$HOME/.to_dirs_recent}"
+  "${TO_CONFIG_FILE:-$CONFIG_ROOT/to_dirs}"
+  "${TO_CONFIG_META_FILE:-$CONFIG_ROOT/to_dirs_meta}"
+  "${TO_USER_CONFIG_FILE:-$CONFIG_ROOT/to_zsh_config}"
+  "${TO_RECENT_FILE:-$CONFIG_ROOT/to_dirs_recent}"
 )
 
 CONFIG_FOUND=false
