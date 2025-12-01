@@ -75,6 +75,7 @@ function prompt_yes() {
 LEGACY_OUT="$(zsh -lc 'whence -w to' 2>/dev/null || true)"
 if printf '%s' "$LEGACY_OUT" | grep -q "function"; then
   warn "found existing Zsh function 'to' (likely from to-zsh) in your shell environment."
+  warn "If you want to remove it first, run the to-zsh uninstall script (e.g., ~/.config/zsh/plugins/to-zsh/uninstall) or remove the function from your shell config."
   if ! $FORCE && ! prompt_yes "Proceed anyway? [y/N]: "; then
     die "aborting to avoid conflict with existing 'to'. Run with --force to override."
   fi
