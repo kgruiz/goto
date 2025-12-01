@@ -3,7 +3,7 @@ use clap::{ArgAction, Parser};
 use clap_complete::Shell;
 
 #[derive(Parser, Debug)]
-#[command(name = "goto", about = "Persistent directory shortcuts (Rust rewrite of to-zsh)", version, disable_help_subcommand = true)]
+#[command(name = "goto", about = "Persistent directory shortcuts (Rust CLI)", version, disable_help_subcommand = true)]
 pub struct CliArgs {
     #[arg(short = 'a', long = "add", num_args = 1..=2, value_names = ["KEYWORD", "PATH"])]
     pub add: Option<Vec<String>>,

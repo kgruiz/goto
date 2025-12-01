@@ -1,4 +1,4 @@
-# goto (Rust rewrite of to-zsh)
+# goto
 
 Persistent, keyword-based directory shortcuts with longest-prefix matching, expirations, recents, bulk add, and shell completions — reimplemented in Rust.
 
@@ -71,9 +71,9 @@ goto --generate-completions bash  > goto.bash
 goto --generate-completions fish  > goto.fish
 ```
 
-Zsh uses dynamic completion hooks mirroring the original `to.zsh` path-aware behavior.
+Zsh uses dynamic completion hooks for path-aware keyword + subpath behavior.
 
-## Differences vs to-zsh
+## Notes
 
 - Implemented in Rust; uses the same config files for compatibility.
 - Dynamic completion handled by the binary; no sourcing a large shell script.
