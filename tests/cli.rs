@@ -24,6 +24,8 @@ fn BuildCommand(temp: &TempDir) -> Command {
     cmd.env("TO_USER_CONFIG_FILE", &userConfigFile);
     cmd.env("TO_RECENT_FILE", &recentFile);
     cmd.env("NO_COLOR", "1");
+    cmd.env("GOTO_SKIP_LEGACY_CHECK", "1");
+    cmd.env("GOTO_ASSUME_YES", "1");
 
     cmd
 }
