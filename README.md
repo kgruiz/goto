@@ -91,7 +91,7 @@ Minimum supported Rust version: **1.85** (edition 2024). Update `Cargo.toml` and
 
 ## License
 
-GPL-3.0-only (matches the original to-zsh). See `LICENSE`.
+GPL-3.0-only. See `LICENSE`.
 
 ## Changelog
 
