@@ -90,8 +90,7 @@ function detect_shell_rc() {
 
 function wrapper_snippet() {
   cat <<'EOSNIPPET'
-
-# added by to installer
+# >>> goto init >>>
 to() {
   local dest
   dest="$(command to --print-path "$@")" || return
@@ -99,7 +98,7 @@ to() {
   mkdir -p "$dest"
   cd "$dest"
 }
-
+# <<< goto init <<<
 EOSNIPPET
 }
 
@@ -107,15 +106,29 @@ function maybe_add_wrapper() {
   local rc_file
   rc_file="$(detect_shell_rc)"
 
-  if grep -qs 'command to --print-path' "$rc_file" 2>/dev/null; then
-    printf 'Shell wrapper already present in %s; leaving as-is.\n' "$rc_file"
-    return
-  fi
+  local startMarker="# >>> goto init >>>"
+  local endMarker="# <<< goto init <<<"
 
   if $FORCE || prompt_yes "Add shell wrapper to ${rc_file}? [y/N]: "; then
     mkdir -p "$(dirname "$rc_file")"
-    wrapper_snippet >>"$rc_file"
-    printf 'Added shell wrapper to %s. Reload your shell to use it.\n' "$rc_file"
+    [ -f "$rc_file" ] || touch "$rc_file"
+
+    local snippet
+    snippet="$(wrapper_snippet)"
+    local escapedSnippet
+    escapedSnippet="$(printf '%s\n' "$snippet" | sed -e 's/[\\/&]/\\&/g')"
+    local tempFile
+    tempFile="$(mktemp)"
+
+    if grep -q "$startMarker" "$rc_file"; then
+      perl -0777 -pe "s|$startMarker.*?$endMarker|$escapedSnippet|s" "$rc_file" > "$tempFile"
+    else
+      cat "$rc_file" > "$tempFile"
+      printf '\n%s\n' "$snippet" >> "$tempFile"
+    fi
+
+    mv "$tempFile" "$rc_file"
+    printf 'Added shell wrapper block (%s … %s) to %s. Reload your shell to use it.\n' "$startMarker" "$endMarker" "$rc_file"
   else
     printf 'Skipping shell wrapper. You can add it manually to %s:\n' "$rc_file"
     wrapper_snippet
