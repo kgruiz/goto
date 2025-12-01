@@ -17,6 +17,7 @@ pub enum Action {
     Remove { keyword: String },
     PrintPath { target: String },
     Jump { target: String, runCursor: bool, create: bool },
+    Complete { mode: String, input: String },
 }
 
 pub fn Execute(args: CliArgs) -> Result<()> {
@@ -68,12 +69,24 @@ pub fn Execute(args: CliArgs) -> Result<()> {
         Action::Jump { target, runCursor, create } => {
             JumpAndMaybeCreate(&mut store, &target, runCursor, create)?;
         }
+        Action::Complete { mode, input } => {
+            Complete(&store, &mode, &input)?;
+        }
     }
 
     Ok(())
 }
 
 fn DetermineAction(args: &CliArgs) -> Result<Action> {
+
+    if let Some(mode) = args.completeMode.as_ref() {
+        let input = args.completeInput.clone().unwrap_or_default();
+
+        return Ok(Action::Complete {
+            mode: mode.to_string(),
+            input,
+        });
+    }
 
     let mut actions = 0;
 
@@ -243,7 +256,129 @@ fn MaybeRunCursor(path: &PathBuf, runCursor: bool) -> Result<()> {
     }
 }
 
+fn Complete(store: &Store, mode: &str, input: &str) -> Result<()> {
+
+    match mode {
+        "keywords" => {
+            let mut suggestions = store.SortedKeywords();
+
+            if !input.is_empty() {
+                suggestions.retain(|k| k.starts_with(input));
+            }
+
+            for suggestion in suggestions {
+                println!("{suggestion}");
+            }
+        }
+        "targets" => {
+            let trimmed = input;
+
+            if let Some((keyword, remainder)) = trimmed.split_once('/') {
+                if let Some(entry) = store.entries.iter().find(|e| e.keyword == keyword) {
+                    let (parentPart, prefix) = match remainder.rsplit_once('/') {
+                        Some((parent, leaf)) => (Some(parent.to_string()), leaf.to_string()),
+                        None => (None, remainder.to_string()),
+                    };
+
+                    let mut searchRoot = entry.path.clone();
+
+                    if let Some(parent) = parentPart.clone() {
+                        if !parent.is_empty() {
+                            searchRoot.push(parent);
+                        }
+                    }
+
+                    if searchRoot.is_dir() {
+                        for dirEntry in std::fs::read_dir(&searchRoot)? {
+                            let dirEntry = dirEntry?;
+                            let name = dirEntry.file_name();
+                            let name = name.to_string_lossy();
+
+                            if !name.starts_with(&prefix) {
+                                continue;
+                            }
+
+                            let mut suggestion = String::new();
+                            suggestion.push_str(keyword);
+                            suggestion.push('/');
+
+                            if let Some(parent) = parentPart.as_ref() {
+                                if !parent.is_empty() {
+                                    suggestion.push_str(parent);
+                                    suggestion.push('/');
+                                }
+                            }
+
+                            suggestion.push_str(&name);
+
+                            if dirEntry.file_type()?.is_dir() {
+                                suggestion.push('/');
+                            }
+
+                            println!("{suggestion}");
+                        }
+
+                        return Ok(());
+                    }
+                }
+            }
+
+            let mut keywords = store.SortedKeywords();
+
+            if !input.is_empty() {
+                keywords.retain(|k| k.starts_with(input));
+            }
+
+            for keyword in keywords {
+                println!("{keyword}");
+            }
+        }
+        _ => bail!("Invalid completion mode"),
+    }
+
+    Ok(())
+}
+
+fn ZshCompletionScript() -> &'static str {
+
+    r#"#compdef goto
+
+_goto() {
+    local state
+    _arguments -s -C \
+      '(-h --help)'{-h,--help}'[show help]' \
+      '(-l --list)'{-l,--list}'[list shortcuts]' \
+      '(-c --cursor)'{-c,--cursor}'[open in Cursor]' \
+      '(-p --print-path)'{-p,--print-path}'[print stored path]:target:->targets' \
+      '(-a --add)'{-a,--add}'[add shortcut]:keyword:->keywords :path:_files -/' \
+      '--add-bulk[add shortcuts from pattern]:pattern:_files -/' \
+      '--copy[copy existing shortcut]:existing keyword:->keywords :new:' \
+      '--expire[expiration timestamp]:timestamp:' \
+      '--no-create[do not create missing directories]' \
+      '(-s --sort)'{-s,--sort}'[set sorting mode]:mode:(added alpha recent)' \
+      '(-r --rm)'{-r,--rm}'[remove shortcut]:keyword:->keywords' \
+      '--generate-completions[generate completions for shell]:shell:(bash zsh fish)' \
+      '*:target:->targets' && return
+
+    case $state in
+      keywords)
+        compadd -- $(goto --__complete-mode keywords --__complete-input "$words[CURRENT]")
+        ;;
+      targets)
+        compadd -- $(goto --__complete-mode targets --__complete-input "$words[CURRENT]")
+        ;;
+    esac
+}
+
+compdef _goto goto
+"#
+}
 fn GenerateCompletions(shell: Shell) -> Result<()> {
+
+    if shell == Shell::Zsh {
+        print!("{}", ZshCompletionScript());
+        return Ok(());
+    }
 
     let mut cmd = CliArgs::command();
 

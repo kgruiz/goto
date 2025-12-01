@@ -2,7 +2,7 @@
 name = "goto"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.79"
+rust-version = "1.85"
 
 [dependencies]
 anyhow = "1.0.91"

@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
 
 use assert_cmd::Command;
+use predicates::prelude::PredicateBooleanExt;
 use predicates::str::contains;
 use std::fs;
 use std::path::PathBuf;
@@ -204,4 +205,56 @@ fn CompletionsIncludeOptions() {
         .stdout(contains("--copy"))
         .stdout(contains("--no-create"))
         .stdout(contains("--sort"));
+}
+
+#[test]
+fn CompleteKeywordsFiltersByPrefix() {
+
+    let temp = TempDir::new().unwrap();
+
+    let dirA = MakeDir(&temp, "apple");
+    let dirB = MakeDir(&temp, "banana");
+
+    BuildCommand(&temp)
+        .args(["--add", "app", dirA.to_str().unwrap()])
+        .assert()
+        .success();
+
+    BuildCommand(&temp)
+        .args(["--add", "ban", dirB.to_str().unwrap()])
+        .assert()
+        .success();
+
+    BuildCommand(&temp)
+        .args(["--__complete-mode", "keywords", "--__complete-input", "a"])
+        .assert()
+        .success()
+        .stdout(contains("app"))
+        .stdout(contains("ban").not());
+}
+
+#[test]
+fn CompleteTargetsAddsSubpaths() {
+
+    let temp = TempDir::new().unwrap();
+
+    let base = MakeDir(&temp, "base");
+    let nested = base.join("src");
+    fs::create_dir_all(&nested).unwrap();
+
+    BuildCommand(&temp)
+        .args(["--add", "base", base.to_str().unwrap()])
+        .assert()
+        .success();
+
+    BuildCommand(&temp)
+        .args([
+            "--__complete-mode",
+            "targets",
+            "--__complete-input",
+            "base/s",
+        ])
+        .assert()
+        .success()
+        .stdout(contains("base/src/"));
 }

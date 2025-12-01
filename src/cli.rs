@@ -38,6 +38,12 @@ pub struct CliArgs {
     #[arg(long = "generate-completions", value_enum, value_name = "SHELL")]
     pub generateCompletions: Option<Shell>,
 
+    #[arg(long = "__complete-mode", hide = true)]
+    pub completeMode: Option<String>,
+
+    #[arg(long = "__complete-input", hide = true)]
+    pub completeInput: Option<String>,
+
     #[arg(value_name = "TARGET")]
     pub target: Option<String>,
 }
