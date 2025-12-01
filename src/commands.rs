@@ -6,7 +6,6 @@ use anyhow::{bail, Result};
 use clap::CommandFactory;
 use clap_complete::{generate, Shell};
 use std::env;
-use std::io::{self, Write};
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -40,22 +39,6 @@ pub fn Execute(args: CliArgs) -> Result<()> {
     if !skipLegacyCheck && LegacyToDetected()? {
         eprintln!("Detected a legacy Zsh `to` function (likely from to-zsh). Disable it before running goto.");
         std::process::exit(1);
-    }
-
-    let assumeYes = matches!(env::var("GOTO_ASSUME_YES"), Ok(val) if val == "1");
-
-    if ConfigFilesExist(&paths) {
-        eprintln!("Existing shortcut config files found (shared with legacy to-zsh):");
-        eprintln!("  {}", paths.configFile.display());
-        eprintln!("  {}", paths.metaFile.display());
-        eprintln!("  {}", paths.userConfigFile.display());
-        eprintln!("  {}", paths.recentFile.display());
-        if !assumeYes {
-            if !PromptProceed("Proceed anyway? [y/N]: ")? {
-                eprintln!("Aborting to avoid modifying shared config.");
-                std::process::exit(1);
-            }
-        }
     }
 
     let mut store = Store::Load(paths)?;
@@ -414,30 +397,6 @@ fn GenerateCompletions(shell: Shell) -> Result<()> {
     generate(shell, &mut cmd, "to", &mut std::io::stdout());
 
     Ok(())
-}
-
-fn ConfigFilesExist(paths: &ConfigPaths) -> bool {
-
-    paths.configFile.exists()
-        || paths.metaFile.exists()
-        || paths.userConfigFile.exists()
-        || paths.recentFile.exists()
-}
-
-fn PromptProceed(message: &str) -> Result<bool> {
-
-    eprint!("{message}");
-    io::stderr().flush()?;
-
-    let mut input = String::new();
-    let read = io::stdin().read_line(&mut input)?;
-    if read == 0 {
-        return Ok(false);
-    }
-
-    let normalized = input.trim().to_lowercase();
-
-    Ok(normalized == "y" || normalized == "yes")
 }
 
 fn LegacyToDetected() -> Result<bool> {
