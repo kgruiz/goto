@@ -9,21 +9,24 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-BIN_NAME="goto"
-PROJECT_NAME="goto"
+BIN_NAME="to"
+PROJECT_NAME="to"
+CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
 
 usage() {
   cat <<'EOUSAGE'
 Usage: ./install [FLAGS] [cargo install flags]
 
 Flags:
-  -q, --quiet            run without prompts (currently no prompts)
+  -y, --yes, --force     bypass conflict prompts and proceed
+  -q, --quiet            suppress prompts (implies --yes)
   -h, --help             display this help message
 
 All other arguments are forwarded to "cargo install".
 EOUSAGE
 }
 
+FORCE=false
 NON_INTERACTIVE=false
 CARGO_ARGS=()
 
@@ -31,6 +34,10 @@ while (($#)); do
   case "$1" in
     -q|--quiet)
       NON_INTERACTIVE=true
+      FORCE=true
+      ;;
+    -y|--yes|--force)
+      FORCE=true
       ;;
     -h|--help)
       usage
@@ -42,6 +49,68 @@ while (($#)); do
   esac
   shift
 done
+
+function warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+function die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+function prompt_yes() {
+  local prompt="$1"
+  if $FORCE || $NON_INTERACTIVE || [ ! -t 0 ]; then
+    return 0
+  fi
+  printf "%s" "$prompt"
+  read -r response
+  case "$response" in
+    [yY]|[yY][eE][sS]) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+LEGACY_OUT="$(zsh -lc 'whence -w to' 2>/dev/null || true)"
+if printf '%s' "$LEGACY_OUT" | grep -q "function"; then
+  warn "found existing Zsh function 'to' (likely from to-zsh) in your shell environment."
+  if ! $FORCE && ! prompt_yes "Proceed anyway? [y/N]: "; then
+    die "aborting to avoid conflict with existing 'to'. Run with --force to override."
+  fi
+fi
+
+EXISTING_BIN="$(command -v to 2>/dev/null || true)"
+if [ -n "$EXISTING_BIN" ] && [ "$EXISTING_BIN" != "$CARGO_HOME/bin/to" ]; then
+  warn "'to' command already on PATH at $EXISTING_BIN"
+  if ! $FORCE && ! prompt_yes "Proceed and overwrite via cargo install? [y/N]: "; then
+    die "aborting to avoid clobbering existing 'to'."
+  fi
+fi
+
+CONFIG_FILES=(
+  "${TO_CONFIG_FILE:-$HOME/.to_dirs}"
+  "${TO_CONFIG_META_FILE:-$HOME/.to_dirs_meta}"
+  "${TO_USER_CONFIG_FILE:-$HOME/.to_zsh_config}"
+  "${TO_RECENT_FILE:-$HOME/.to_dirs_recent}"
+)
+
+CONFIG_FOUND=false
+for f in "${CONFIG_FILES[@]}"; do
+  if [ -e "$f" ]; then
+    CONFIG_FOUND=true
+  fi
+done
+
+if $CONFIG_FOUND; then
+  warn "existing to/to-zsh config files detected:"
+  for f in "${CONFIG_FILES[@]}"; do
+    [ -e "$f" ] && printf '  %s\n' "$f" >&2
+  done
+  if ! $FORCE && ! prompt_yes "Use these files and continue? [y/N]: "; then
+    die "aborting to avoid modifying shared config."
+  fi
+fi
 
 printf 'Installing %s from %s\n' "$PROJECT_NAME" "$SCRIPT_DIR"
 
@@ -55,6 +124,20 @@ TARGET_PATH="$(command -v "$BIN_NAME" 2>/dev/null || true)"
 
 if [ -x "$TARGET_PATH" ]; then
   printf '%s installation complete at %s\n' "$PROJECT_NAME" "$TARGET_PATH"
+  cat <<'EOSNIPPET'
+
+Add a shell wrapper so the command changes your current directory (example for zsh/bash):
+
+  to() {
+    local dest
+    dest="$(command to --print-path "$@")" || return
+    [ -z "$dest" ] && return
+    mkdir -p "$dest"
+    cd "$dest"
+  }
+
+Place the function in your shell rc (e.g., ~/.zshrc), then reload your shell.
+EOSNIPPET
 else
-  printf 'warning: installed %s but could not resolve binary on PATH; ensure $CARGO_HOME/bin is on PATH.\n' "$PROJECT_NAME" >&2
+  warn "installed $PROJECT_NAME but could not resolve binary on PATH; ensure \$CARGO_HOME/bin is on PATH."
 fi

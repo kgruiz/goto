@@ -370,9 +370,9 @@ fn Complete(store: &Store, mode: &str, input: &str) -> Result<()> {
 
 fn ZshCompletionScript() -> &'static str {
 
-    r#"#compdef goto
+    r#"#compdef to
 
-_goto() {
+_to() {
     local state
     _arguments -s -C \
       '(-h --help)'{-h,--help}'[show help]' \
@@ -391,15 +391,15 @@ _goto() {
 
     case $state in
       keywords)
-        compadd -- $(goto --__complete-mode keywords --__complete-input "$words[CURRENT]")
+        compadd -- $(to --__complete-mode keywords --__complete-input "$words[CURRENT]")
         ;;
       targets)
-        compadd -- $(goto --__complete-mode targets --__complete-input "$words[CURRENT]")
+        compadd -- $(to --__complete-mode targets --__complete-input "$words[CURRENT]")
         ;;
     esac
 }
 
-compdef _goto goto
+compdef _to to
 "#
 }
 fn GenerateCompletions(shell: Shell) -> Result<()> {
@@ -411,7 +411,7 @@ fn GenerateCompletions(shell: Shell) -> Result<()> {
 
     let mut cmd = CliArgs::command();
 
-    generate(shell, &mut cmd, "goto", &mut std::io::stdout());
+    generate(shell, &mut cmd, "to", &mut std::io::stdout());
 
     Ok(())
 }

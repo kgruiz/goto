@@ -9,7 +9,7 @@ use tempfile::TempDir;
 
 fn BuildCommand(temp: &TempDir) -> Command {
 
-    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("goto"));
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("to"));
 
     let home = temp.path().to_path_buf();
 

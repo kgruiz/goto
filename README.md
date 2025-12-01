@@ -1,4 +1,4 @@
-# goto
+# to
 
 Persistent, keyword-based directory shortcuts with longest-prefix matching, expirations, recents, bulk add, and shell completions — reimplemented in Rust.
 
@@ -9,7 +9,7 @@ Persistent, keyword-based directory shortcuts with longest-prefix matching, expi
 Install directly from the repository (latest main):
 
 ```bash
-cargo install --git https://github.com/kgruiz/goto.git goto
+cargo install --git https://github.com/kgruiz/goto.git to
 ```
 
 Or build from a local checkout (handy while iterating):
@@ -31,11 +31,11 @@ Any extra flags are forwarded to `cargo install` (e.g., `./install --features fo
 ## Quick start
 
 ```bash
-goto --add proj ~/code/my-project          # save keyword
-goto proj/src/lib                          # jump (creates missing dirs)
-goto --print-path proj/docs                # print resolved path
-goto --list                                # list saved shortcuts
-goto --rm proj                             # remove
+to --add proj ~/code/my-project          # save keyword
+to proj/src/lib                          # jump (creates missing dirs)
+to --print-path proj/docs                # print resolved path
+to --list                                # list saved shortcuts
+to --rm proj                             # remove
 ```
 
 ## Features
@@ -65,12 +65,14 @@ goto --rm proj                             # remove
 
 ## Shell integration (cd)
 
-`goto` prints the resolved path; to change your shell directory, wrap it:
+`to` prints the resolved path; to change your shell directory, wrap it:
 
 ```zsh
-function goto() {
+function to() {
   local dest
-  dest="$(command goto "$@")" || return
+  dest="$(command to --print-path "$@")" || return
+  [ -z "$dest" ] && return
+  mkdir -p "$dest"
   cd "$dest"
 }
 ```
@@ -82,9 +84,9 @@ For cursor support, keep passing `-c` to the binary; the wrapper simply handles 
 Generate completion scripts:
 
 ```bash
-goto --generate-completions zsh   > _goto
-goto --generate-completions bash  > goto.bash
-goto --generate-completions fish  > goto.fish
+to --generate-completions zsh   > _to
+to --generate-completions bash  > to.bash
+to --generate-completions fish  > to.fish
 ```
 
 Zsh uses dynamic completion hooks for path-aware keyword + subpath behavior.
