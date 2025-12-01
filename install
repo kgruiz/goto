@@ -104,13 +104,7 @@ for f in "${CONFIG_FILES[@]}"; do
 done
 
 if $CONFIG_FOUND; then
-  warn "existing to/to-zsh config files detected:"
-  for f in "${CONFIG_FILES[@]}"; do
-    [ -e "$f" ] && printf '  %s\n' "$f" >&2
-  done
-  if ! $FORCE && ! prompt_yes "Use these files and continue? [y/N]: "; then
-    die "aborting to avoid modifying shared config."
-  fi
+  warn "existing to config files detected in ${CONFIG_ROOT}; proceeding will reuse them."
 fi
 
 printf 'Installing %s from %s\n' "$PROJECT_NAME" "$SCRIPT_DIR"
