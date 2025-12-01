@@ -194,5 +194,3 @@ if [ -x "$TARGET_PATH" ]; then
 else
   warn "installed $PROJECT_NAME but could not resolve binary on PATH; ensure \$CARGO_HOME/bin is on PATH."
 fi
-
-}
