@@ -100,6 +100,7 @@ Zsh uses dynamic completion hooks for path-aware keyword + subpath behavior.
 ## Configuration details
 
 - Files: `~/.goto/to_dirs`, `~/.goto/to_dirs_meta`, `~/.goto/to_dirs_recent`, `~/.goto/to_zsh_config`.
+- Env overrides (useful for testing or custom setups): `TO_CONFIG_FILE`, `TO_CONFIG_META_FILE`, `TO_USER_CONFIG_FILE`, `TO_RECENT_FILE`.
 - Env overrides (useful for tests): `TO_CONFIG_FILE`, `TO_CONFIG_META_FILE`, `TO_USER_CONFIG_FILE`, `TO_RECENT_FILE`.
 - Sorting: `alpha` (natural), `added` (file order), `recent` (uses recents file).
 

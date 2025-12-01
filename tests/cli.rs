@@ -12,11 +12,13 @@ fn BuildCommand(temp: &TempDir) -> Command {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("to"));
 
     let home = temp.path().to_path_buf();
+    let goto_root = home.join(".goto");
+    std::fs::create_dir_all(&goto_root).unwrap();
 
-    let configFile = home.join(".to_dirs");
-    let metaFile = home.join(".to_dirs_meta");
-    let userConfigFile = home.join(".to_zsh_config");
-    let recentFile = home.join(".to_dirs_recent");
+    let configFile = goto_root.join("to_dirs");
+    let metaFile = goto_root.join("to_dirs_meta");
+    let userConfigFile = goto_root.join("to_zsh_config");
+    let recentFile = goto_root.join("to_dirs_recent");
 
     cmd.env("HOME", &home);
     cmd.env("TO_CONFIG_FILE", &configFile);
@@ -90,7 +92,7 @@ fn AddWithoutKeywordUsesBasename() {
         .success()
         .stdout(contains("alpha"));
 
-    let configPath = temp.path().join(".to_dirs");
+    let configPath = temp.path().join(".goto/to_dirs");
 
     let contents = fs::read_to_string(configPath).unwrap();
 
@@ -144,7 +146,7 @@ fn JumpCreatesWhenAllowed() {
 
     assert!(target.exists());
 
-    let recents = fs::read_to_string(temp.path().join(".to_dirs_recent")).unwrap();
+    let recents = fs::read_to_string(temp.path().join(".goto/to_dirs_recent")).unwrap();
 
     assert!(recents.contains("base="));
 }
@@ -189,7 +191,7 @@ fn AddBulkAddsAllDirectories() {
         .success()
         .stdout(contains("Added"));
 
-    let config = fs::read_to_string(temp.path().join(".to_dirs")).unwrap();
+    let config = fs::read_to_string(temp.path().join(".goto/to_dirs")).unwrap();
 
     assert!(config.contains("one="));
     assert!(config.contains("two="));
