@@ -4,13 +4,29 @@ Persistent, keyword-based directory shortcuts with longest-prefix matching, expi
 
 > Note: As a standalone binary, `goto` cannot change the parent shell’s directory. Wrap it in a shell function to `cd` into the printed path (see “Shell integration”).
 
-## Install
+## Installation
+
+Install directly from the repository (latest main):
 
 ```bash
-cargo install --path .
+cargo install --git https://github.com/kgruiz/goto.git goto
 ```
 
-Requires Rust **1.85+** (edition 2024).
+Or build from a local checkout (handy while iterating):
+
+```bash
+git clone https://github.com/kgruiz/goto.git
+cd goto
+cargo build --release
+```
+
+If you already have the repo locally, you can run the helper script which wraps `cargo install --locked --force` against the current checkout:
+
+```bash
+./install
+```
+
+Any extra flags are forwarded to `cargo install` (e.g., `./install --features foo`). Requires Rust **1.85+** (edition 2024).
 
 ## Quick start
 

@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if ! command -v cargo >/dev/null 2>&1; then
+  echo "error: cargo is required but was not found in PATH." >&2
+  echo "Install Rust via https://rustup.rs/ and ensure cargo is available." >&2
+  exit 1
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+BIN_NAME="goto"
+PROJECT_NAME="goto"
+
+usage() {
+  cat <<'EOUSAGE'
+Usage: ./install [FLAGS] [cargo install flags]
+
+Flags:
+  -q, --quiet            run without prompts (currently no prompts)
+  -h, --help             display this help message
+
+All other arguments are forwarded to "cargo install".
+EOUSAGE
+}
+
+NON_INTERACTIVE=false
+CARGO_ARGS=()
+
+while (($#)); do
+  case "$1" in
+    -q|--quiet)
+      NON_INTERACTIVE=true
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      CARGO_ARGS+=("$1")
+      ;;
+  esac
+  shift
+done
+
+printf 'Installing %s from %s\n' "$PROJECT_NAME" "$SCRIPT_DIR"
+
+if ((${#CARGO_ARGS[@]})); then
+  cargo install --path "$SCRIPT_DIR" --locked --force "${CARGO_ARGS[@]}"
+else
+  cargo install --path "$SCRIPT_DIR" --locked --force
+fi
+
+TARGET_PATH="$(command -v "$BIN_NAME" 2>/dev/null || true)"
+
+if [ -x "$TARGET_PATH" ]; then
+  printf '%s installation complete at %s\n' "$PROJECT_NAME" "$TARGET_PATH"
+else
+  printf 'warning: installed %s but could not resolve binary on PATH; ensure $CARGO_HOME/bin is on PATH.\n' "$PROJECT_NAME" >&2
+fi
