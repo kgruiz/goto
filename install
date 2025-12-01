@@ -72,6 +72,56 @@ function prompt_yes() {
   esac
 }
 
+function detect_shell_rc() {
+  local shell_rc
+  case "${SHELL:-}" in
+    */zsh)
+      shell_rc="${ZDOTDIR:-$HOME}/.zshrc"
+      ;;
+    */bash)
+      shell_rc="${HOME}/.bashrc"
+      ;;
+    *)
+      shell_rc="${HOME}/.profile"
+      ;;
+  esac
+  printf '%s' "$shell_rc"
+}
+
+function wrapper_snippet() {
+  cat <<'EOSNIPPET'
+
+# added by to installer
+to() {
+  local dest
+  dest="$(command to --print-path "$@")" || return
+  [ -z "$dest" ] && return
+  mkdir -p "$dest"
+  cd "$dest"
+}
+
+EOSNIPPET
+}
+
+function maybe_add_wrapper() {
+  local rc_file
+  rc_file="$(detect_shell_rc)"
+
+  if grep -qs 'command to --print-path' "$rc_file" 2>/dev/null; then
+    printf 'Shell wrapper already present in %s; leaving as-is.\n' "$rc_file"
+    return
+  fi
+
+  if $FORCE || prompt_yes "Add shell wrapper to ${rc_file}? [y/N]: "; then
+    mkdir -p "$(dirname "$rc_file")"
+    wrapper_snippet >>"$rc_file"
+    printf 'Added shell wrapper to %s. Reload your shell to use it.\n' "$rc_file"
+  else
+    printf 'Skipping shell wrapper. You can add it manually to %s:\n' "$rc_file"
+    wrapper_snippet
+  fi
+}
+
 LEGACY_OUT="$(zsh -lc 'whence -w to' 2>/dev/null || true)"
 if printf '%s' "$LEGACY_OUT" | grep -q "function"; then
   warn "found existing Zsh function 'to' (likely from to-zsh) in your shell environment."
@@ -120,20 +170,9 @@ TARGET_PATH="$(command -v "$BIN_NAME" 2>/dev/null || true)"
 
 if [ -x "$TARGET_PATH" ]; then
   printf '%s installation complete at %s\n' "$PROJECT_NAME" "$TARGET_PATH"
-  cat <<'EOSNIPPET'
-
-Add a shell wrapper so the command changes your current directory (example for zsh/bash):
-
-  to() {
-    local dest
-    dest="$(command to --print-path "$@")" || return
-    [ -z "$dest" ] && return
-    mkdir -p "$dest"
-    cd "$dest"
-  }
-
-Place the function in your shell rc (e.g., ~/.zshrc), then reload your shell.
-EOSNIPPET
+  maybe_add_wrapper
 else
   warn "installed $PROJECT_NAME but could not resolve binary on PATH; ensure \$CARGO_HOME/bin is on PATH."
 fi
+
+}
