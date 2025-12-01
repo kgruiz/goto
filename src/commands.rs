@@ -5,6 +5,7 @@ use crate::store::Store;
 use anyhow::{bail, Result};
 use clap::CommandFactory;
 use clap_complete::{generate, Shell};
+use std::env;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -25,6 +26,10 @@ pub fn Execute(args: CliArgs) -> Result<()> {
     if let Some(shell) = args.generateCompletions {
         GenerateCompletions(shell)?;
         return Ok(());
+    }
+
+    if args.noColor || env::var("NO_COLOR").is_ok() {
+        owo_colors::set_override(false);
     }
 
     let paths = ConfigPaths::Resolve()?;

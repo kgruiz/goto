@@ -23,6 +23,7 @@ fn BuildCommand(temp: &TempDir) -> Command {
     cmd.env("TO_CONFIG_META_FILE", &metaFile);
     cmd.env("TO_USER_CONFIG_FILE", &userConfigFile);
     cmd.env("TO_RECENT_FILE", &recentFile);
+    cmd.env("NO_COLOR", "1");
 
     cmd
 }

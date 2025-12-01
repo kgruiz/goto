@@ -1,10 +1,11 @@
 use crate::paths::ConfigPaths;
 use anyhow::{anyhow, bail, Context, Result};
+use fd_lock::RwLock;
 use glob::glob;
 use natord::compare;
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -434,10 +435,21 @@ fn CurrentEpoch() -> u64 {
 
 fn WriteConfig(path: &Path, entries: &[ShortcutEntry]) -> Result<()> {
 
-    let mut file = File::create(path)?;
+    let file = OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .open(path)?;
+
+    let mut lock = RwLock::new(file);
+
+    let mut guard = lock.write()?;
+
+    guard.set_len(0)?;
+    guard.seek(SeekFrom::Start(0))?;
 
     for entry in entries {
-        writeln!(file, "{}={}", entry.keyword, entry.path.display())?;
+        writeln!(&mut *guard, "{}={}", entry.keyword, entry.path.display())?;
     }
 
     Ok(())
@@ -445,15 +457,21 @@ fn WriteConfig(path: &Path, entries: &[ShortcutEntry]) -> Result<()> {
 
 fn WriteMeta(path: &Path, expiries: &HashMap<String, u64>) -> Result<()> {
 
-    if expiries.is_empty() {
-        File::create(path)?;
-        return Ok(());
-    }
+    let file = OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .open(path)?;
 
-    let mut file = File::create(path)?;
+    let mut lock = RwLock::new(file);
+
+    let mut guard = lock.write()?;
+
+    guard.set_len(0)?;
+    guard.seek(SeekFrom::Start(0))?;
 
     for (key, value) in expiries {
-        writeln!(file, "{}={}", key, value)?;
+        writeln!(&mut *guard, "{}={}", key, value)?;
     }
 
     Ok(())
@@ -461,10 +479,21 @@ fn WriteMeta(path: &Path, expiries: &HashMap<String, u64>) -> Result<()> {
 
 fn WriteRecents(path: &Path, recents: &HashMap<String, u64>) -> Result<()> {
 
-    let mut file = File::create(path)?;
+    let file = OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .open(path)?;
+
+    let mut lock = RwLock::new(file);
+
+    let mut guard = lock.write()?;
+
+    guard.set_len(0)?;
+    guard.seek(SeekFrom::Start(0))?;
 
     for (key, value) in recents {
-        writeln!(file, "{}={}", key, value)?;
+        writeln!(&mut *guard, "{}={}", key, value)?;
     }
 
     Ok(())
@@ -513,14 +542,21 @@ fn WriteSortMode(path: &Path, mode: &SortMode) -> Result<()> {
         }
     }
 
-    let mut file = OpenOptions::new()
+    let file = OpenOptions::new()
         .create(true)
+        .read(true)
         .write(true)
-        .truncate(true)
         .open(path)?;
 
+    let mut lock = RwLock::new(file);
+
+    let mut guard = lock.write()?;
+
+    guard.set_len(0)?;
+    guard.seek(SeekFrom::Start(0))?;
+
     for line in lines {
-        writeln!(file, "{line}")?;
+        writeln!(&mut *guard, "{line}")?;
     }
 
     let value = match mode {
@@ -529,7 +565,7 @@ fn WriteSortMode(path: &Path, mode: &SortMode) -> Result<()> {
         SortMode::Recent => "recent",
     };
 
-    writeln!(file, "sort_order={value}")?;
+    writeln!(&mut *guard, "sort_order={value}")?;
 
     Ok(())
 }

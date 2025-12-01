@@ -44,6 +44,9 @@ pub struct CliArgs {
     #[arg(long = "__complete-input", hide = true)]
     pub completeInput: Option<String>,
 
+    #[arg(long = "no-color", action = ArgAction::SetTrue)]
+    pub noColor: bool,
+
     #[arg(value_name = "TARGET")]
     pub target: Option<String>,
 }
