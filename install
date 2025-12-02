@@ -98,35 +98,31 @@ function wrapper_snippet() {
 # >>> goto init >>>
 to() {
 
-  case "$1" in
-    ""|\
-    -h|--help|\
-    -V|--version|\
-    -l|--list|\
-    -a|--add|\
-    --add-bulk|\
-    --copy|\
-    -r|--rm|\
-    -s|--sort|\
-    --show-sort|\
-    --print-path|\
-    -p|\
-    --generate-completions|\
-    --expire|\
-    --no-color|\
-    --__complete-mode|\
-    --__complete-input)
+  local target_present=false
+  local arg
+  local after_dashes=false
 
-      command to "$@"
+  for arg in "$@"; do
 
-      return
-      ;;
+    if [ "$arg" = "--" ]; then
+      after_dashes=true
+      continue
+    fi
 
-    --)
+    if ! $after_dashes && [ "${arg#-}" != "$arg" ]; then
+      continue
+    fi
 
-      shift
-      ;;
-  esac
+    target_present=true
+    break
+  done
+
+  if ! $target_present; then
+
+    command to "$@"
+
+    return
+  fi
 
   # First, let the binary perform its normal jump logic (recents, expirations,
   # creation, cursor). This won't change the parent shell's cwd.
