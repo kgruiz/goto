@@ -183,10 +183,35 @@ function maybe_add_wrapper() {
     local marker_present=false
     local path_present=false
 
-    if grep -q "$startMarker" "$rc_file"; then
-        marker_present=true
-    elif grep -q "$escapedPath" "$rc_file"; then
-        path_present=true
+    # Gather candidate shell init files to scan
+    local -a rc_candidates
+    rc_candidates+=("$rc_file")
+
+    case "${SHELL:-}" in
+        */zsh)
+            rc_candidates+=("${ZDOTDIR:-$HOME}/.zshenv")
+            ;;
+        */bash)
+            rc_candidates+=("$HOME/.bash_profile")
+            ;;
+    esac
+
+    for cand in "${rc_candidates[@]}"; do
+        [ -f "$cand" ] || continue
+        if grep -q "$startMarker" "$cand"; then
+            marker_present=true
+            break
+        fi
+    done
+
+    if ! $marker_present; then
+        for cand in "${rc_candidates[@]}"; do
+            [ -f "$cand" ] || continue
+            if grep -q "$escapedPath" "$cand"; then
+                path_present=true
+                break
+            fi
+        done
     fi
 
     if $FORCE || prompt_yes "Add shell wrapper to ${rc_file}? [y/N]: "; then
