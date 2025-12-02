@@ -199,6 +199,36 @@ function maybe_add_wrapper() {
 
     local startMarker="# >>> goto init >>>"
     local endMarker="# <<< goto init <<<"
+    local snippet
+    snippet=$(cat <<'EOSNIPPET'
+# >>> goto init >>>
+GOTO_FUNC_PATH="${XDG_CONFIG_HOME:-$HOME/.config}/zsh/plugins/goto/goto.zsh"
+GOTO_COMP_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/zsh/completions"
+if [ -d "$GOTO_COMP_DIR" ]; then
+  case " ${fpath[*]} " in
+    *" $GOTO_COMP_DIR "*) ;;
+    *) fpath=("$GOTO_COMP_DIR" $fpath) ;;
+  esac
+fi
+if [ -f "$GOTO_FUNC_PATH" ]; then
+  if ! . "$GOTO_FUNC_PATH" 2>&1; then
+    echo "Error: Failed to source \"$(basename "$GOTO_FUNC_PATH")\"" >&2
+  fi
+else
+  echo "Error: \"$(basename "$GOTO_FUNC_PATH")\" not found at:" >&2
+  echo "  $GOTO_FUNC_PATH" >&2
+fi
+if (( ! $+_comps[to] )); then
+  autoload -Uz compinit
+  compinit -i
+fi
+unset GOTO_FUNC_PATH
+unset GOTO_COMP_DIR
+# <<< goto init <<<
+EOSNIPPET
+)
+    local snippet_no_markers
+    snippet_no_markers="$(printf '%s\n' "$snippet" | sed '1d;$d')"
     local escapedPath
     escapedPath="$(printf '%s\n' "$WRAPPER_PATH" | sed -e 's/[\\/&]/\\&/g')"
     local escapedComp
@@ -229,7 +259,41 @@ function maybe_add_wrapper() {
     done
 
     if ! $marker_present; then
-        # Detect existing wrapper/completion sourcing even if the marker comments were removed.
+        # Detect the entire snippet (with markers) already present.
+        for cand in "${rc_candidates[@]}"; do
+            [ -f "$cand" ] || continue
+            SNIPPET_CHECK="$snippet" python3 - "$cand" <<'PY'
+import os, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+needle = os.environ["SNIPPET_CHECK"]
+sys.exit(0 if needle in path.read_text() else 1)
+PY
+            if [ $? -eq 0 ]; then
+                path_present=true
+                break
+            fi
+        done
+    fi
+
+    if ! $marker_present && ! $path_present; then
+        # Detect the snippet body when the comment markers were removed.
+        for cand in "${rc_candidates[@]}"; do
+            [ -f "$cand" ] || continue
+            SNIPPET_CHECK="$snippet_no_markers" python3 - "$cand" <<'PY'
+import os, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+needle = os.environ["SNIPPET_CHECK"]
+sys.exit(0 if needle in path.read_text() else 1)
+PY
+            if [ $? -eq 0 ]; then
+                path_present=true
+                break
+            fi
+        done
+    fi
+
+    if ! $marker_present && ! $path_present; then
+        # Fallback: detect existing wrapper/completion sourcing via key paths/vars.
         local -a detect_patterns
         detect_patterns+=("$escapedPath" "$escapedComp")
         detect_patterns+=("zsh/plugins/goto/goto.zsh" "zsh/completions/_to")
@@ -255,34 +319,6 @@ function maybe_add_wrapper() {
         mkdir -p "$(dirname "$rc_file")"
         [ -f "$rc_file" ] || touch "$rc_file"
 
-        local snippet
-        snippet=$(cat <<'EOSNIPPET'
-# >>> goto init >>>
-GOTO_FUNC_PATH="${XDG_CONFIG_HOME:-$HOME/.config}/zsh/plugins/goto/goto.zsh"
-GOTO_COMP_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/zsh/completions"
-if [ -d "$GOTO_COMP_DIR" ]; then
-  case " ${fpath[*]} " in
-    *" $GOTO_COMP_DIR "*) ;;
-    *) fpath=("$GOTO_COMP_DIR" $fpath) ;;
-  esac
-fi
-if [ -f "$GOTO_FUNC_PATH" ]; then
-  if ! . "$GOTO_FUNC_PATH" 2>&1; then
-    echo "Error: Failed to source \"$(basename "$GOTO_FUNC_PATH")\"" >&2
-  fi
-else
-  echo "Error: \"$(basename "$GOTO_FUNC_PATH")\" not found at:" >&2
-  echo "  $GOTO_FUNC_PATH" >&2
-fi
-if (( ! $+_comps[to] )); then
-  autoload -Uz compinit
-  compinit -i
-fi
-unset GOTO_FUNC_PATH
-unset GOTO_COMP_DIR
-# <<< goto init <<<
-EOSNIPPET
-)
         local escapedSnippet
         escapedSnippet="$(printf '%s\n' "$snippet" | sed -e 's/[\\/&]/\\&/g')"
         local tempFile
