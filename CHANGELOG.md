@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2
+
+- Fix wrapper: use the correct hidden flag (`--__classify`) so jump detection works and shells actually `cd` when using the installed wrapper.
+
 ## 0.2.0
 
 - Installer: detect the shell wrapper even if marker comments are removed; avoid non-zero exit when the wrapper already exists without markers.
