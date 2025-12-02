@@ -108,6 +108,7 @@ to() {
     --copy|\
     -r|--rm|\
     -s|--sort|\
+    --show-sort|\
     --print-path|\
     -p|\
     --generate-completions|\
