@@ -229,11 +229,6 @@ EOSNIPPET
 )
     local snippet_no_markers
     snippet_no_markers="$(printf '%s\n' "$snippet" | sed '1d;$d')"
-    local escapedPath
-    escapedPath="$(printf '%s\n' "$WRAPPER_PATH" | sed -e 's/[\\/&]/\\&/g')"
-    local escapedComp
-    escapedComp="$(printf '%s\n' "$COMPLETION_DIR" | sed -e 's/[\\/&]/\\&/g')"
-
     local marker_present=false
     local path_present=false
 
@@ -289,24 +284,6 @@ PY
                 path_present=true
                 break
             fi
-        done
-    fi
-
-    if ! $marker_present && ! $path_present; then
-        # Fallback: detect existing wrapper/completion sourcing via key paths/vars.
-        local -a detect_patterns
-        detect_patterns+=("$escapedPath" "$escapedComp")
-        detect_patterns+=("zsh/plugins/goto/goto.zsh" "zsh/completions/_to")
-        detect_patterns+=("GOTO_FUNC_PATH" "GOTO_COMP_DIR")
-
-        for cand in "${rc_candidates[@]}"; do
-            [ -f "$cand" ] || continue
-            for pat in "${detect_patterns[@]}"; do
-                if grep -q "$pat" "$cand"; then
-                    path_present=true
-                    break 2
-                fi
-            done
         done
     fi
 
