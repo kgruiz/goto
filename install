@@ -92,10 +92,46 @@ function wrapper_snippet() {
   cat <<'EOSNIPPET'
 # >>> goto init >>>
 to() {
+
+  case "$1" in
+    ""|\
+    -h|--help|\
+    -V|--version|\
+    -l|--list|\
+    -a|--add|\
+    --add-bulk|\
+    --copy|\
+    -r|--rm|\
+    -s|--sort|\
+    --print-path|\
+    -p|\
+    --generate-completions|\
+    --expire|\
+    --no-color|\
+    --__complete-mode|\
+    --__complete-input|\
+    -q|--quiet|\
+    -y|--yes|--force)
+
+      command to "$@"
+
+      return
+      ;;
+
+    --)
+
+      shift
+      ;;
+  esac
+
   local dest
+
   dest="$(command to --print-path "$@")" || return
+
   [ -z "$dest" ] && return
+
   mkdir -p "$dest"
+
   cd "$dest"
 }
 # <<< goto init <<<
@@ -108,11 +144,6 @@ function maybe_add_wrapper() {
 
   local startMarker="# >>> goto init >>>"
   local endMarker="# <<< goto init <<<"
-
-  if grep -qs 'command to --print-path' "$rc_file" 2>/dev/null; then
-    printf 'Shell wrapper already present in %s; leaving as-is.\n' "$rc_file"
-    return
-  fi
 
   if $FORCE || prompt_yes "Add shell wrapper to ${rc_file}? [y/N]: "; then
     mkdir -p "$(dirname "$rc_file")"
