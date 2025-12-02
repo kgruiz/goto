@@ -295,7 +295,7 @@ fn SearchFiltersByKeywordAndPath() {
         .success();
 
     BuildCommand(&temp)
-        .args(["search", "proj", "-p"])
+        .args(["--list", "proj", "--path"])
         .assert()
         .success()
         .stdout(contains("proj"))
@@ -321,7 +321,7 @@ fn SearchAliasListsAllWhenEmpty() {
         .success();
 
     BuildCommand(&temp)
-        .arg("s")
+        .arg("--list")
         .assert()
         .success()
         .stdout(contains("one"))
@@ -340,7 +340,7 @@ fn SearchJsonOutputsValid() {
         .success();
 
     let output = BuildCommand(&temp)
-        .args(["search", "json", "-j"])
+        .args(["--list", "json", "--json"])
         .assert()
         .success()
         .get_output()

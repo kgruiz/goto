@@ -1,4 +1,4 @@
-use crate::cli::{CliArgs, Commands, SearchArgs};
+use crate::cli::CliArgs;
 use crate::output;
 use crate::paths::ConfigPaths;
 use crate::store::{SearchMode, SearchOptions, Store};
@@ -13,7 +13,6 @@ use std::process::Command;
 
 pub enum Action {
     Help,
-    List,
     ShowSort,
     Add {
         keyword: String,
@@ -108,9 +107,6 @@ pub fn Execute(args: CliArgs) -> Result<()> {
 
             output::PrintSavedShortcuts(&store);
         }
-        Action::List => {
-            output::PrintList(&store);
-        }
         Action::Search {
             query,
             matchKeyword,
@@ -189,59 +185,21 @@ fn DetermineAction(args: &CliArgs) -> Result<Action> {
         });
     }
 
-    if let Some(command) = args.command.as_ref() {
-        let mut actions = 0;
-
-        if args.list {
-            actions += 1;
-        }
-
-        if args.add.is_some() {
-            actions += 1;
-        }
-
-        if args.showSortMode {
-            actions += 1;
-        }
-
-        if args.addBulk.is_some() {
-            actions += 1;
-        }
-
-        if args.copy.is_some() {
-            actions += 1;
-        }
-
-        if args.remove.is_some() {
-            actions += 1;
-        }
-
-        if args.printPath {
-            actions += 1;
-        }
-
-        if actions > 0 {
-            bail!("Please run one primary action at a time.");
-        }
-
-        return match command {
-            Commands::Search(searchArgs) => BuildSearchAction(searchArgs),
-            Commands::List => BuildSearchAction(&SearchArgs {
-                query: None,
-                keyword: false,
-                path: false,
-                requireBoth: false,
-                glob: false,
-                regex: false,
-                json: false,
-                limit: None,
-            }),
-        };
-    }
-
     let mut actions = 0;
 
-    if args.list {
+    let listFlagsUsed = args.listKeyword
+        || args.listPath
+        || args.listRequireBoth
+        || args.listGlob
+        || args.listRegex
+        || args.listJson
+        || args.listLimit.is_some();
+
+    if listFlagsUsed && args.list.is_none() {
+        bail!("--keyword/--path/--and/--glob/--regex/--json/--limit require --list.");
+    }
+
+    if args.list.is_some() {
         actions += 1;
     }
 
@@ -310,8 +268,8 @@ fn DetermineAction(args: &CliArgs) -> Result<Action> {
         });
     }
 
-    if args.list {
-        return Ok(Action::List);
+    if let Some(query) = args.list.as_ref() {
+        return BuildListAction(args, query);
     }
 
     if args.printPath {
@@ -339,33 +297,31 @@ fn DetermineAction(args: &CliArgs) -> Result<Action> {
     })
 }
 
-fn BuildSearchAction(args: &SearchArgs) -> Result<Action> {
-    let query = args.query.clone().unwrap_or_default();
-
-    if query.is_empty() && (args.glob || args.regex) {
-        bail!("Provide a query when using --glob or --regex.");
+fn BuildListAction(args: &CliArgs, query: &str) -> Result<Action> {
+    if query.is_empty() && (args.listGlob || args.listRegex) {
+        bail!("Provide a query when using --glob or --regex with --list.");
     }
 
-    let mode = if args.glob {
-        let pattern = Pattern::new(&query)?;
+    let mode = if args.listGlob {
+        let pattern = Pattern::new(query)?;
 
         SearchMode::Glob(pattern)
-    } else if args.regex {
-        let regex = RegexBuilder::new(&query).case_insensitive(true).build()?;
+    } else if args.listRegex {
+        let regex = RegexBuilder::new(query).case_insensitive(true).build()?;
 
         SearchMode::Regex(regex)
     } else {
-        SearchMode::Substring(query.clone())
+        SearchMode::Substring(query.to_string())
     };
 
     Ok(Action::Search {
-        query,
-        matchKeyword: args.keyword,
-        matchPath: args.path,
-        requireBoth: args.requireBoth,
+        query: query.to_string(),
+        matchKeyword: args.listKeyword,
+        matchPath: args.listPath,
+        requireBoth: args.listRequireBoth,
         mode,
-        outputJson: args.json,
-        limit: args.limit,
+        outputJson: args.listJson,
+        limit: args.listLimit,
     })
 }
 
@@ -532,7 +488,7 @@ _to() {
     local state
     _arguments -s -C \
       '(-h --help)'{-h,--help}'[show help]' \
-      '(-l --list)'{-l,--list}'[list shortcuts]' \
+      '(-l --list)'{-l,--list}'[list or search shortcuts][::query:->listquery]' \
       '(-c --cursor)'{-c,--cursor}'[open in Cursor]' \
       '(-p --print-path)'{-p,--print-path}'[print stored path]:target:->targets' \
       '(-a --add)'{-a,--add}'[add shortcut]:keyword:->keywords :path:_files -/' \
@@ -544,14 +500,18 @@ _to() {
       '--show-sort[print current sorting mode]' \
       '(-r --rm)'{-r,--rm}'[remove shortcut]:keyword:->keywords' \
       '--generate-completions[generate completions for shell]:shell:(bash zsh fish)' \
-      'search[search shortcuts]:query:->search' \
-      's[search shortcuts (alias)]:query:->search' \
-      'list[list saved shortcuts]' \
+      '--keyword[search keywords only]' \
+      '--path[search paths only]' \
+      '--and[require match in keyword and path]' \
+      '--glob[interpret list query as glob]' \
+      '--regex[interpret list query as regex]' \
+      '--json[output list/search as json]' \
+      '--limit[limit list/search results]:N:' \
       '*:target:->targets' && return
 
     case $state in
-      search)
-        _message 'search query'
+      listquery)
+        _message 'list or search query'
         ;;
       keywords)
         compadd -- $(to --__complete-mode keywords --__complete-input "$words[CURRENT]")

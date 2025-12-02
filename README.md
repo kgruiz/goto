@@ -34,9 +34,8 @@ Any extra flags are forwarded to `cargo install` (e.g., `./install --features fo
 to --add proj ~/code/my-project          # save keyword
 to proj/src/lib                          # jump (creates missing dirs)
 to --print-path proj/docs                # print resolved path
-to search proj                           # search keyword + path
-to s                                     # list all shortcuts (alias of search)
-to --list                                # list saved shortcuts
+to --list proj                           # search keyword + path
+to --list                                # list all shortcuts
 to --rm proj                             # remove
 ```
 
@@ -59,7 +58,7 @@ to --rm proj                             # remove
 - `--copy <existing> <new>`
 - `--rm, -r <keyword>`
 - `--list, -l`
-- `search|s <query?> [-k|--keyword] [-p|--path] [-A|--and] [-g|--glob] [-r|--regex] [-j|--json] [-n|--limit N]`
+- `--list[=QUERY] [-k|--keyword] [-P|--path] [-A|--and] [-g|--glob] [-e|--regex] [-j|--json] [-n|--limit N]`
 - `--print-path, -p <target>`
 - `--cursor, -c`
 - `--no-create`
@@ -110,11 +109,10 @@ Zsh uses dynamic completion hooks for path-aware keyword + subpath behavior.
 
 ## Search
 
-- `to search QUERY` (alias: `to s QUERY`) searches keywords and paths with case-insensitive substring matching by default.
-- Scope with `-k/--keyword` or `-p/--path`; combine both with `-A/--and` to require matches in both fields.
-- Pattern modes: substring (default), `-g/--glob`, or `-r/--regex` (case-insensitive).
+- `to --list QUERY` searches keywords and paths with case-insensitive substring matching by default; omit QUERY to list everything.
+- Scope with `-k/--keyword` or `-P/--path`; combine both with `-A/--and` to require matches in both fields.
+- Pattern modes: substring (default), `-g/--glob`, or `-e/--regex` (case-insensitive).
 - Output as JSON with `-j/--json`; limit rows with `-n/--limit`.
-- `to s` with no query lists everything (same as `to list`).
 
 ## MSRV
 

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::{ArgAction, Args, Parser, Subcommand};
+use clap::{ArgAction, Parser};
 use clap_complete::Shell;
 
 #[derive(Parser, Debug)]
@@ -37,8 +37,41 @@ pub struct CliArgs {
     )]
     pub remove: Option<String>,
 
-    #[arg(short = 'l', long = "list", action = ArgAction::SetTrue, help = "List all shortcuts.")]
-    pub list: bool,
+    #[arg(
+        short = 'l',
+        long = "list",
+        num_args = 0..=1,
+        value_name = "QUERY",
+        default_missing_value = "",
+        help = "List or search shortcuts. Optional QUERY filters by keyword/path."
+    )]
+    pub list: Option<String>,
+
+    #[arg(short = 'k', long = "keyword", action = ArgAction::SetTrue, help = "Search keywords only (with --list).")]
+    pub listKeyword: bool,
+
+    #[arg(short = 'P', long = "path", action = ArgAction::SetTrue, help = "Search paths only (with --list).")]
+    pub listPath: bool,
+
+    #[arg(short = 'A', long = "and", action = ArgAction::SetTrue, help = "Require matches on both keyword and path when both are searched.")]
+    pub listRequireBoth: bool,
+
+    #[arg(short = 'g', long = "glob", action = ArgAction::SetTrue, conflicts_with = "listRegex", help = "Treat list query as a glob pattern.")]
+    pub listGlob: bool,
+
+    #[arg(short = 'e', long = "regex", action = ArgAction::SetTrue, help = "Treat list query as a regular expression (case-insensitive).")]
+    pub listRegex: bool,
+
+    #[arg(short = 'j', long = "json", action = ArgAction::SetTrue, help = "Return list/search results as JSON.")]
+    pub listJson: bool,
+
+    #[arg(
+        short = 'n',
+        long = "limit",
+        value_name = "N",
+        help = "Limit number of list/search results."
+    )]
+    pub listLimit: Option<usize>,
 
     #[arg(short = 'p', long = "print-path", action = ArgAction::SetTrue, help = "Print the resolved path for TARGET without changing directory.")]
     pub printPath: bool,
@@ -89,50 +122,6 @@ pub struct CliArgs {
 
     #[arg(value_name = "TARGET")]
     pub target: Option<String>,
-
-    #[command(subcommand)]
-    pub command: Option<Commands>,
-}
-
-#[derive(Subcommand, Debug)]
-pub enum Commands {
-    #[command(alias = "s", about = "Search saved shortcuts (alias: s)")]
-    Search(SearchArgs),
-
-    #[command(about = "List all shortcuts (alias of search with no query)")]
-    List,
-}
-
-#[derive(Args, Debug)]
-pub struct SearchArgs {
-    #[arg(value_name = "QUERY")]
-    pub query: Option<String>,
-
-    #[arg(short = 'k', long = "keyword", action = ArgAction::SetTrue, help = "Search keywords only.")]
-    pub keyword: bool,
-
-    #[arg(short = 'p', long = "path", action = ArgAction::SetTrue, help = "Search paths only.")]
-    pub path: bool,
-
-    #[arg(short = 'A', long = "and", action = ArgAction::SetTrue, help = "Require matches on both keyword and path when both are searched.")]
-    pub requireBoth: bool,
-
-    #[arg(short = 'g', long = "glob", action = ArgAction::SetTrue, conflicts_with = "regex", help = "Treat query as a glob pattern." )]
-    pub glob: bool,
-
-    #[arg(short = 'r', long = "regex", action = ArgAction::SetTrue, help = "Treat query as a regular expression.")]
-    pub regex: bool,
-
-    #[arg(short = 'j', long = "json", action = ArgAction::SetTrue, help = "Return results as JSON.")]
-    pub json: bool,
-
-    #[arg(
-        short = 'n',
-        long = "limit",
-        value_name = "N",
-        help = "Limit number of results."
-    )]
-    pub limit: Option<usize>,
 }
 
 pub fn ParseArgs() -> Result<CliArgs> {

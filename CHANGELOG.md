@@ -2,7 +2,7 @@
 
 ## 0.4.0 - Dec 2, 2025
 
-- Added `search` subcommand (alias `s`) with keyword/path scoping, glob/regex modes, JSON output, and `to s` listing convenience.
+- `--list` now doubles as search with an optional query plus keyword/path scoping, glob/regex modes, JSON output, and result limiting.
 
 ## 0.3.0
 
