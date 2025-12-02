@@ -13,6 +13,8 @@ BIN_NAME="to"
 PROJECT_NAME="to"
 CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
 TARGET_PATH="${CARGO_HOME}/bin/${BIN_NAME}"
+CONFIG_BASE="${XDG_CONFIG_HOME:-$HOME/.config}"
+WRAPPER_PATH="${CONFIG_BASE}/zsh/plugins/goto/goto.zsh"
 
 usage() {
   cat <<'EOUSAGE'
@@ -147,6 +149,28 @@ to() {
 EOSNIPPET
 }
 
+function install_wrapper_file() {
+
+  local dir
+  dir="$(dirname "$WRAPPER_PATH")"
+  mkdir -p "$dir"
+
+  local action="installed"
+  if [ -f "$WRAPPER_PATH" ]; then
+    if wrapper_snippet | cmp -s - "$WRAPPER_PATH"; then
+      action="unchanged"
+    else
+      action="updated"
+    fi
+  fi
+
+  if [ "$action" != "unchanged" ]; then
+    wrapper_snippet >"$WRAPPER_PATH"
+  fi
+
+  printf 'Wrapper script at %s (%s)\n' "$WRAPPER_PATH" "$action"
+}
+
 function maybe_add_wrapper() {
     local rc_file
     rc_file="$(detect_shell_rc)"
@@ -159,7 +183,20 @@ function maybe_add_wrapper() {
         [ -f "$rc_file" ] || touch "$rc_file"
 
         local snippet
-        snippet="$(wrapper_snippet)"
+        snippet=$(cat <<'EOSNIPPET'
+# >>> goto init >>>
+GOTO_FUNC_PATH="${XDG_CONFIG_HOME:-$HOME/.config}/zsh/plugins/goto/goto.zsh"
+
+if [ -f "$GOTO_FUNC_PATH" ]; then
+
+  . "$GOTO_FUNC_PATH"
+
+fi
+
+unset GOTO_FUNC_PATH
+# <<< goto init <<<
+EOSNIPPET
+)
         local escapedSnippet
         escapedSnippet="$(printf '%s\n' "$snippet" | sed -e 's/[\\/&]/\\&/g')"
         local tempFile
@@ -232,6 +269,8 @@ done
 if $CONFIG_FOUND; then
   warn "found ${CONFIG_COUNT} existing config file(s) under ${CONFIG_ROOT}; proceeding will reuse them."
 fi
+
+install_wrapper_file
 
 printf 'Installing %s from %s\n' "$PROJECT_NAME" "$SCRIPT_DIR"
 printf 'Target binary: %s\n' "$TARGET_PATH"
