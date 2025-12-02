@@ -43,6 +43,17 @@ pub enum Action {
 }
 
 pub fn Execute(args: CliArgs) -> Result<()> {
+    if args.classifyInvocation {
+        let action = DetermineAction(&args)?;
+
+        match action {
+            Action::Jump { .. } => println!("jump"),
+            _ => println!("nojump"),
+        }
+
+        return Ok(());
+    }
+
     if let Some(shell) = args.generateCompletions {
         GenerateCompletions(shell)?;
         return Ok(());

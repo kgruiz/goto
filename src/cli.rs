@@ -75,6 +75,9 @@ pub struct CliArgs {
     )]
     pub generateCompletions: Option<Shell>,
 
+    #[arg(long = "__classify", hide = true, action = ArgAction::SetTrue)]
+    pub classifyInvocation: bool,
+
     #[arg(long = "__complete-mode", hide = true)]
     pub completeMode: Option<String>,
 
