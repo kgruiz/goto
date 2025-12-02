@@ -186,13 +186,14 @@ function maybe_add_wrapper() {
         snippet=$(cat <<'EOSNIPPET'
 # >>> goto init >>>
 GOTO_FUNC_PATH="${XDG_CONFIG_HOME:-$HOME/.config}/zsh/plugins/goto/goto.zsh"
-
 if [ -f "$GOTO_FUNC_PATH" ]; then
-
-  . "$GOTO_FUNC_PATH"
-
+  if ! . "$GOTO_FUNC_PATH" 2>&1; then
+    echo "Error: Failed to source \"$(basename "$GOTO_FUNC_PATH")\"" >&2
+  fi
+else
+  echo "Error: \"$(basename "$GOTO_FUNC_PATH")\" not found at:" >&2
+  echo "  $GOTO_FUNC_PATH" >&2
 fi
-
 unset GOTO_FUNC_PATH
 # <<< goto init <<<
 EOSNIPPET
