@@ -1,10 +1,12 @@
-use crate::cli::CliArgs;
+use crate::cli::{CliArgs, Commands, SearchArgs};
 use crate::output;
 use crate::paths::ConfigPaths;
-use crate::store::Store;
+use crate::store::{SearchMode, SearchOptions, Store};
 use anyhow::{Result, bail};
 use clap::CommandFactory;
 use clap_complete::{Shell, generate};
+use glob::Pattern;
+use regex::RegexBuilder;
 use std::env;
 use std::path::PathBuf;
 use std::process::Command;
@@ -39,6 +41,16 @@ pub enum Action {
     Complete {
         mode: String,
         input: String,
+    },
+
+    Search {
+        query: String,
+        matchKeyword: bool,
+        matchPath: bool,
+        requireBoth: bool,
+        mode: SearchMode,
+        outputJson: bool,
+        limit: Option<usize>,
     },
 }
 
@@ -99,6 +111,32 @@ pub fn Execute(args: CliArgs) -> Result<()> {
         Action::List => {
             output::PrintList(&store);
         }
+        Action::Search {
+            query,
+            matchKeyword,
+            matchPath,
+            requireBoth,
+            mode,
+            outputJson,
+            limit,
+        } => {
+            let options = SearchOptions {
+                query,
+                matchKeyword,
+                matchPath,
+                requireBoth,
+                mode,
+                limit,
+            };
+
+            let results = store.Search(&options);
+
+            if outputJson {
+                output::PrintSearchJson(&results)?;
+            } else {
+                output::PrintSearchResults(&results, &options.query);
+            }
+        }
         Action::Add {
             keyword,
             path,
@@ -149,6 +187,56 @@ fn DetermineAction(args: &CliArgs) -> Result<Action> {
             mode: mode.to_string(),
             input,
         });
+    }
+
+    if let Some(command) = args.command.as_ref() {
+        let mut actions = 0;
+
+        if args.list {
+            actions += 1;
+        }
+
+        if args.add.is_some() {
+            actions += 1;
+        }
+
+        if args.showSortMode {
+            actions += 1;
+        }
+
+        if args.addBulk.is_some() {
+            actions += 1;
+        }
+
+        if args.copy.is_some() {
+            actions += 1;
+        }
+
+        if args.remove.is_some() {
+            actions += 1;
+        }
+
+        if args.printPath {
+            actions += 1;
+        }
+
+        if actions > 0 {
+            bail!("Please run one primary action at a time.");
+        }
+
+        return match command {
+            Commands::Search(searchArgs) => BuildSearchAction(searchArgs),
+            Commands::List => BuildSearchAction(&SearchArgs {
+                query: None,
+                keyword: false,
+                path: false,
+                requireBoth: false,
+                glob: false,
+                regex: false,
+                json: false,
+                limit: None,
+            }),
+        };
     }
 
     let mut actions = 0;
@@ -248,6 +336,36 @@ fn DetermineAction(args: &CliArgs) -> Result<Action> {
         target,
         runCursor: args.cursor,
         create: !args.noCreate,
+    })
+}
+
+fn BuildSearchAction(args: &SearchArgs) -> Result<Action> {
+    let query = args.query.clone().unwrap_or_default();
+
+    if query.is_empty() && (args.glob || args.regex) {
+        bail!("Provide a query when using --glob or --regex.");
+    }
+
+    let mode = if args.glob {
+        let pattern = Pattern::new(&query)?;
+
+        SearchMode::Glob(pattern)
+    } else if args.regex {
+        let regex = RegexBuilder::new(&query).case_insensitive(true).build()?;
+
+        SearchMode::Regex(regex)
+    } else {
+        SearchMode::Substring(query.clone())
+    };
+
+    Ok(Action::Search {
+        query,
+        matchKeyword: args.keyword,
+        matchPath: args.path,
+        requireBoth: args.requireBoth,
+        mode,
+        outputJson: args.json,
+        limit: args.limit,
     })
 }
 
@@ -426,9 +544,15 @@ _to() {
       '--show-sort[print current sorting mode]' \
       '(-r --rm)'{-r,--rm}'[remove shortcut]:keyword:->keywords' \
       '--generate-completions[generate completions for shell]:shell:(bash zsh fish)' \
+      'search[search shortcuts]:query:->search' \
+      's[search shortcuts (alias)]:query:->search' \
+      'list[list saved shortcuts]' \
       '*:target:->targets' && return
 
     case $state in
+      search)
+        _message 'search query'
+        ;;
       keywords)
         compadd -- $(to --__complete-mode keywords --__complete-input "$words[CURRENT]")
         ;;

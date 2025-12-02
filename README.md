@@ -34,6 +34,8 @@ Any extra flags are forwarded to `cargo install` (e.g., `./install --features fo
 to --add proj ~/code/my-project          # save keyword
 to proj/src/lib                          # jump (creates missing dirs)
 to --print-path proj/docs                # print resolved path
+to search proj                           # search keyword + path
+to s                                     # list all shortcuts (alias of search)
 to --list                                # list saved shortcuts
 to --rm proj                             # remove
 ```
@@ -46,6 +48,7 @@ to --rm proj                             # remove
 - Recents tracking for `recent` sort mode.
 - Expiring shortcuts via `--expire <epoch>`.
 - Bulk add via glob patterns; copy keywords or retarget paths.
+- Search shortcuts by keyword and/or path with substring, glob, or regex matching.
 - Colorful, zsh-like output (disable with `--no-color` or `NO_COLOR=1`).
 - Shell completions with dynamic keyword/path suggestions.
 
@@ -56,6 +59,7 @@ to --rm proj                             # remove
 - `--copy <existing> <new>`
 - `--rm, -r <keyword>`
 - `--list, -l`
+- `search|s <query?> [-k|--keyword] [-p|--path] [-A|--and] [-g|--glob] [-r|--regex] [-j|--json] [-n|--limit N]`
 - `--print-path, -p <target>`
 - `--cursor, -c`
 - `--no-create`
@@ -103,6 +107,14 @@ Zsh uses dynamic completion hooks for path-aware keyword + subpath behavior.
 - Env overrides (useful for testing or custom setups): `TO_CONFIG_FILE`, `TO_CONFIG_META_FILE`, `TO_USER_CONFIG_FILE`, `TO_RECENT_FILE`.
 - Env overrides (useful for tests): `TO_CONFIG_FILE`, `TO_CONFIG_META_FILE`, `TO_USER_CONFIG_FILE`, `TO_RECENT_FILE`.
 - Sorting: `alpha` (natural), `added` (file order), `recent` (uses recents file).
+
+## Search
+
+- `to search QUERY` (alias: `to s QUERY`) searches keywords and paths with case-insensitive substring matching by default.
+- Scope with `-k/--keyword` or `-p/--path`; combine both with `-A/--and` to require matches in both fields.
+- Pattern modes: substring (default), `-g/--glob`, or `-r/--regex` (case-insensitive).
+- Output as JSON with `-j/--json`; limit rows with `-n/--limit`.
+- `to s` with no query lists everything (same as `to list`).
 
 ## MSRV
 

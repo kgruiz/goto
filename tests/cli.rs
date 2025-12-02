@@ -3,6 +3,7 @@
 use assert_cmd::Command;
 use predicates::prelude::PredicateBooleanExt;
 use predicates::str::contains;
+use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
@@ -273,4 +274,82 @@ fn CompleteTargetsAddsSubpaths() {
         .assert()
         .success()
         .stdout(contains("base/src/"));
+}
+
+#[test]
+fn SearchFiltersByKeywordAndPath() {
+    let temp = TempDir::new().unwrap();
+
+    let alpha = MakeDir(&temp, "alpha");
+
+    let nested = MakeDir(&temp, "projects/client-a");
+
+    BuildCommand(&temp)
+        .args(["--add", "alpha", alpha.to_str().unwrap()])
+        .assert()
+        .success();
+
+    BuildCommand(&temp)
+        .args(["--add", "proj", nested.to_str().unwrap()])
+        .assert()
+        .success();
+
+    BuildCommand(&temp)
+        .args(["search", "proj", "-p"])
+        .assert()
+        .success()
+        .stdout(contains("proj"))
+        .stdout(contains("alpha").not());
+}
+
+#[test]
+fn SearchAliasListsAllWhenEmpty() {
+    let temp = TempDir::new().unwrap();
+
+    let first = MakeDir(&temp, "first");
+
+    let second = MakeDir(&temp, "second");
+
+    BuildCommand(&temp)
+        .args(["--add", "one", first.to_str().unwrap()])
+        .assert()
+        .success();
+
+    BuildCommand(&temp)
+        .args(["--add", "two", second.to_str().unwrap()])
+        .assert()
+        .success();
+
+    BuildCommand(&temp)
+        .arg("s")
+        .assert()
+        .success()
+        .stdout(contains("one"))
+        .stdout(contains("two"));
+}
+
+#[test]
+fn SearchJsonOutputsValid() {
+    let temp = TempDir::new().unwrap();
+
+    let dir = MakeDir(&temp, "json-dir");
+
+    BuildCommand(&temp)
+        .args(["--add", "json", dir.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let output = BuildCommand(&temp)
+        .args(["search", "json", "-j"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let as_str = String::from_utf8(output).unwrap();
+
+    let parsed: Value = serde_json::from_str(&as_str).unwrap();
+
+    assert!(parsed.is_array());
 }

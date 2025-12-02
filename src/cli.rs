@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::{ArgAction, Parser};
+use clap::{ArgAction, Args, Parser, Subcommand};
 use clap_complete::Shell;
 
 #[derive(Parser, Debug)]
@@ -89,6 +89,50 @@ pub struct CliArgs {
 
     #[arg(value_name = "TARGET")]
     pub target: Option<String>,
+
+    #[command(subcommand)]
+    pub command: Option<Commands>,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum Commands {
+    #[command(alias = "s", about = "Search saved shortcuts (alias: s)")]
+    Search(SearchArgs),
+
+    #[command(about = "List all shortcuts (alias of search with no query)")]
+    List,
+}
+
+#[derive(Args, Debug)]
+pub struct SearchArgs {
+    #[arg(value_name = "QUERY")]
+    pub query: Option<String>,
+
+    #[arg(short = 'k', long = "keyword", action = ArgAction::SetTrue, help = "Search keywords only.")]
+    pub keyword: bool,
+
+    #[arg(short = 'p', long = "path", action = ArgAction::SetTrue, help = "Search paths only.")]
+    pub path: bool,
+
+    #[arg(short = 'A', long = "and", action = ArgAction::SetTrue, help = "Require matches on both keyword and path when both are searched.")]
+    pub requireBoth: bool,
+
+    #[arg(short = 'g', long = "glob", action = ArgAction::SetTrue, conflicts_with = "regex", help = "Treat query as a glob pattern." )]
+    pub glob: bool,
+
+    #[arg(short = 'r', long = "regex", action = ArgAction::SetTrue, help = "Treat query as a regular expression.")]
+    pub regex: bool,
+
+    #[arg(short = 'j', long = "json", action = ArgAction::SetTrue, help = "Return results as JSON.")]
+    pub json: bool,
+
+    #[arg(
+        short = 'n',
+        long = "limit",
+        value_name = "N",
+        help = "Limit number of results."
+    )]
+    pub limit: Option<usize>,
 }
 
 pub fn ParseArgs() -> Result<CliArgs> {

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added `search` subcommand (alias `s`) with keyword/path scoping, glob/regex modes, JSON output, and `to s` listing convenience.
+
 ## 0.3.0
 
 - `to --add` now prints the canonicalized path in its confirmation message, so casing matches the actual filesystem path on macOS.

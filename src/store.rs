@@ -1,8 +1,9 @@
 use crate::paths::ConfigPaths;
 use anyhow::{Context, Result, anyhow, bail};
 use fd_lock::RwLock;
-use glob::glob;
+use glob::{Pattern, glob};
 use natord::compare;
+use regex::Regex;
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, Seek, SeekFrom, Write};
@@ -20,6 +21,45 @@ pub enum SortMode {
 pub struct ShortcutEntry {
     pub keyword: String,
     pub path: PathBuf,
+}
+
+#[derive(Debug, Clone)]
+pub struct SearchResult {
+    pub keyword: String,
+    pub path: PathBuf,
+    pub expiry: Option<u64>,
+}
+
+#[derive(Debug, Clone)]
+pub enum SearchMode {
+    Substring(String),
+    Glob(Pattern),
+    Regex(Regex),
+}
+
+#[derive(Debug, Clone)]
+pub struct SearchOptions {
+    pub query: String,
+    pub matchKeyword: bool,
+    pub matchPath: bool,
+    pub requireBoth: bool,
+    pub mode: SearchMode,
+    pub limit: Option<usize>,
+}
+
+impl SearchMode {
+    pub fn matches(&self, value: &str) -> bool {
+        match self {
+            SearchMode::Substring(query) => {
+                let haystack = value.to_lowercase();
+                let needle = query.to_lowercase();
+
+                haystack.contains(&needle)
+            }
+            SearchMode::Glob(pattern) => pattern.matches(value),
+            SearchMode::Regex(regex) => regex.is_match(value),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -119,6 +159,67 @@ impl Store {
                 keywords
             }
         }
+    }
+
+    pub fn Search(&self, options: &SearchOptions) -> Vec<SearchResult> {
+        let mut results = Vec::new();
+
+        let keywords = self.SortedKeywords();
+
+        let matchKeyword = if options.matchKeyword || options.matchPath {
+            options.matchKeyword
+        } else {
+            true
+        };
+
+        let matchPath = if options.matchKeyword || options.matchPath {
+            options.matchPath
+        } else {
+            true
+        };
+
+        for keyword in keywords {
+            let entry = match self.entries.iter().find(|e| e.keyword == keyword) {
+                Some(entry) => entry,
+                None => continue,
+            };
+
+            let keywordMatches = if matchKeyword {
+                options.mode.matches(&entry.keyword)
+            } else {
+                false
+            };
+
+            let pathMatches = if matchPath {
+                let pathStr = entry.path.to_string_lossy().to_string();
+
+                options.mode.matches(&pathStr)
+            } else {
+                false
+            };
+
+            let include = if options.requireBoth && matchKeyword && matchPath {
+                keywordMatches && pathMatches
+            } else {
+                (matchKeyword && keywordMatches) || (matchPath && pathMatches)
+            };
+
+            if include {
+                results.push(SearchResult {
+                    keyword: entry.keyword.clone(),
+                    path: entry.path.clone(),
+                    expiry: self.expiries.get(&entry.keyword).copied(),
+                });
+
+                if let Some(limit) = options.limit {
+                    if results.len() >= limit {
+                        break;
+                    }
+                }
+            }
+        }
+
+        results
     }
 
     pub fn AddShortcut(

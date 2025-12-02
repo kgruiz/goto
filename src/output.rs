@@ -1,4 +1,5 @@
-use crate::store::Store;
+use crate::store::{SearchResult, Store};
+use anyhow::Result;
 use owo_colors::OwoColorize;
 use std::path::PathBuf;
 
@@ -83,6 +84,56 @@ pub fn PrintList(store: &Store) {
             );
         }
     }
+}
+
+pub fn PrintSearchResults(results: &[SearchResult], query: &str) {
+    if results.is_empty() {
+        if query.is_empty() {
+            println!("{}", "No shortcuts saved.".red().bold());
+
+            return;
+        }
+
+        println!(
+            "{}",
+            format!("No shortcuts matched '{}'.", query).red().bold()
+        );
+
+        return;
+    }
+
+    for result in results {
+        match result.expiry {
+            Some(ts) => println!(
+                "{} → {} (expires {})",
+                result.keyword.bold().cyan(),
+                result.path.display().to_string().dimmed(),
+                ts
+            ),
+            None => println!(
+                "{} → {}",
+                result.keyword.bold().cyan(),
+                result.path.display().to_string().dimmed()
+            ),
+        }
+    }
+}
+
+pub fn PrintSearchJson(results: &[SearchResult]) -> Result<()> {
+    let payload: Vec<_> = results
+        .iter()
+        .map(|result| {
+            serde_json::json!({
+                "keyword": result.keyword,
+                "path": result.path,
+                "expiry": result.expiry,
+            })
+        })
+        .collect();
+
+    println!("{}", serde_json::to_string_pretty(&payload)?);
+
+    Ok(())
 }
 
 pub fn PrintAdded(keyword: &str, path: &PathBuf, expire: Option<u64>) {
