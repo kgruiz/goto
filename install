@@ -12,6 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN_NAME="to"
 PROJECT_NAME="to"
 CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
+TARGET_PATH="${CARGO_HOME}/bin/${BIN_NAME}"
 
 usage() {
   cat <<'EOUSAGE'
@@ -147,38 +148,47 @@ EOSNIPPET
 }
 
 function maybe_add_wrapper() {
-  local rc_file
-  rc_file="$(detect_shell_rc)"
+    local rc_file
+    rc_file="$(detect_shell_rc)"
 
-  local startMarker="# >>> goto init >>>"
-  local endMarker="# <<< goto init <<<"
+    local startMarker="# >>> goto init >>>"
+    local endMarker="# <<< goto init <<<"
 
-  if $FORCE || prompt_yes "Add shell wrapper to ${rc_file}? [y/N]: "; then
-    mkdir -p "$(dirname "$rc_file")"
-    [ -f "$rc_file" ] || touch "$rc_file"
+    if $FORCE || prompt_yes "Add shell wrapper to ${rc_file}? [y/N]: "; then
+        mkdir -p "$(dirname "$rc_file")"
+        [ -f "$rc_file" ] || touch "$rc_file"
 
-    local snippet
-    snippet="$(wrapper_snippet)"
-    local escapedSnippet
-    escapedSnippet="$(printf '%s\n' "$snippet" | sed -e 's/[\\/&]/\\&/g')"
-    local tempFile
-    tempFile="$(mktemp)"
+        local snippet
+        snippet="$(wrapper_snippet)"
+        local escapedSnippet
+        escapedSnippet="$(printf '%s\n' "$snippet" | sed -e 's/[\\/&]/\\&/g')"
+        local tempFile
+        tempFile="$(mktemp)"
+        local blockAction="added"
 
-    if grep -q "$startMarker" "$rc_file"; then
-      perl -0777 -pe "s|$startMarker.*?$endMarker|$escapedSnippet|s" "$rc_file" > "$tempFile"
-    elif grep -q 'command to --print-path' "$rc_file"; then
-      perl -0777 -pe "s|to\(\)\s*\{[^\}]*command to --print-path.*?\}\s*|$escapedSnippet|s" "$rc_file" > "$tempFile"
+        if grep -q "$startMarker" "$rc_file"; then
+            perl -0777 -pe "s|$startMarker.*?$endMarker|$escapedSnippet|s" "$rc_file" > "$tempFile"
+            blockAction="updated"
+        elif grep -q 'command to --print-path' "$rc_file"; then
+            perl -0777 -pe "s|to\(\)\s*\{[^\}]*command to --print-path.*?\}\s*|$escapedSnippet|s" "$rc_file" > "$tempFile"
+            blockAction="updated"
+        else
+            cat "$rc_file" > "$tempFile"
+            printf '\n%s\n' "$snippet" >> "$tempFile"
+        fi
+
+        if cmp -s "$tempFile" "$rc_file"; then
+            blockAction="unchanged"
+            rm "$tempFile"
+        else
+            mv "$tempFile" "$rc_file"
+        fi
+
+        printf 'Shell wrapper in %s (%s). Reload your shell to use it.\n' "$rc_file" "$blockAction"
     else
-      cat "$rc_file" > "$tempFile"
-      printf '\n%s\n' "$snippet" >> "$tempFile"
+        printf 'Skipping shell wrapper. You can add it manually to %s:\n' "$rc_file"
+        wrapper_snippet
     fi
-
-    mv "$tempFile" "$rc_file"
-    printf 'Added shell wrapper block (%s … %s) to %s. Reload your shell to use it.\n' "$startMarker" "$endMarker" "$rc_file"
-  else
-    printf 'Skipping shell wrapper. You can add it manually to %s:\n' "$rc_file"
-    wrapper_snippet
-  fi
 }
 
 LEGACY_OUT="$(zsh -lc 'whence -w to' 2>/dev/null || true)"
@@ -191,10 +201,14 @@ if printf '%s' "$LEGACY_OUT" | grep -q "function"; then
 fi
 
 EXISTING_BIN="$(command -v to 2>/dev/null || true)"
-if [ -n "$EXISTING_BIN" ] && [ "$EXISTING_BIN" != "$CARGO_HOME/bin/to" ]; then
-  warn "'to' command already on PATH at $EXISTING_BIN"
-  if ! $FORCE && ! prompt_yes "Proceed and overwrite via cargo install? [y/N]: "; then
-    die "aborting to avoid clobbering existing 'to'."
+if [ -n "$EXISTING_BIN" ]; then
+  if [ "$EXISTING_BIN" = "$TARGET_PATH" ]; then
+    printf "Existing 'to' already resolves to %s; continuing.\n" "$TARGET_PATH"
+  else
+    warn "'to' command already on PATH at $EXISTING_BIN (expected $TARGET_PATH)"
+    if ! $FORCE && ! prompt_yes "Proceed and overwrite via cargo install? [y/N]: "; then
+      die "aborting to avoid clobbering existing 'to'."
+    fi
   fi
 fi
 
@@ -207,17 +221,20 @@ CONFIG_FILES=(
 )
 
 CONFIG_FOUND=false
+CONFIG_COUNT=0
 for f in "${CONFIG_FILES[@]}"; do
   if [ -e "$f" ]; then
     CONFIG_FOUND=true
+    CONFIG_COUNT=$((CONFIG_COUNT + 1))
   fi
 done
 
 if $CONFIG_FOUND; then
-  warn "existing to config files detected in ${CONFIG_ROOT}; proceeding will reuse them."
+  warn "found ${CONFIG_COUNT} existing config file(s) under ${CONFIG_ROOT}; proceeding will reuse them."
 fi
 
 printf 'Installing %s from %s\n' "$PROJECT_NAME" "$SCRIPT_DIR"
+printf 'Target binary: %s\n' "$TARGET_PATH"
 
 if ((${#CARGO_ARGS[@]})); then
   cargo install --path "$SCRIPT_DIR" --locked --force "${CARGO_ARGS[@]}"
@@ -225,10 +242,14 @@ else
   cargo install --path "$SCRIPT_DIR" --locked --force
 fi
 
-TARGET_PATH="$(command -v "$BIN_NAME" 2>/dev/null || true)"
+RESOLVED_BIN="$(command -v "$BIN_NAME" 2>/dev/null || true)"
 
-if [ -x "$TARGET_PATH" ]; then
-  printf '%s installation complete at %s\n' "$PROJECT_NAME" "$TARGET_PATH"
+if [ -x "$RESOLVED_BIN" ]; then
+  if [ "$RESOLVED_BIN" = "$TARGET_PATH" ]; then
+    printf '%s installation complete at %s\n' "$PROJECT_NAME" "$RESOLVED_BIN"
+  else
+    printf '%s installation complete, but PATH resolves to %s (expected %s)\n' "$PROJECT_NAME" "$RESOLVED_BIN" "$TARGET_PATH"
+  fi
   maybe_add_wrapper
 else
   warn "installed $PROJECT_NAME but could not resolve binary on PATH; ensure \$CARGO_HOME/bin is on PATH."
