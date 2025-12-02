@@ -71,7 +71,7 @@ pub struct CliArgs {
         long = "generate-completions",
         value_enum,
         value_name = "SHELL",
-        help = "Print shell completions to stdout (bash, zsh, fish, powershell, elvish)."
+        help = "Generate shell completions to stdout."
     )]
     pub generateCompletions: Option<Shell>,
 
