@@ -15,6 +15,8 @@ CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
 TARGET_PATH="${CARGO_HOME}/bin/${BIN_NAME}"
 CONFIG_BASE="${XDG_CONFIG_HOME:-$HOME/.config}"
 WRAPPER_PATH="${CONFIG_BASE}/zsh/plugins/goto/goto.zsh"
+COMPLETION_DIR="${CONFIG_BASE}/zsh/completions"
+COMPLETION_FILE="${COMPLETION_DIR}/_to"
 
 usage() {
   cat <<'EOUSAGE'
@@ -171,6 +173,26 @@ function install_wrapper_file() {
   printf 'Wrapper script at %s (%s)\n' "$WRAPPER_PATH" "$action"
 }
 
+function install_completion_file() {
+
+  mkdir -p "$COMPLETION_DIR"
+
+  local action="installed"
+  if [ -f "$COMPLETION_FILE" ]; then
+    if to --generate-completions zsh | cmp -s - "$COMPLETION_FILE"; then
+      action="unchanged"
+    else
+      action="updated"
+    fi
+  fi
+
+  if [ "$action" != "unchanged" ]; then
+    to --generate-completions zsh >"$COMPLETION_FILE"
+  fi
+
+  printf 'Zsh completion at %s (%s)\n' "$COMPLETION_FILE" "$action"
+}
+
 function maybe_add_wrapper() {
     local rc_file
     rc_file="$(detect_shell_rc)"
@@ -179,6 +201,8 @@ function maybe_add_wrapper() {
     local endMarker="# <<< goto init <<<"
     local escapedPath
     escapedPath="$(printf '%s\n' "$WRAPPER_PATH" | sed -e 's/[\\/&]/\\&/g')"
+    local escapedComp
+    escapedComp="$(printf '%s\n' "$COMPLETION_DIR" | sed -e 's/[\\/&]/\\&/g')"
 
     local marker_present=false
     local path_present=false
@@ -207,7 +231,7 @@ function maybe_add_wrapper() {
     if ! $marker_present; then
         for cand in "${rc_candidates[@]}"; do
             [ -f "$cand" ] || continue
-            if grep -q "$escapedPath" "$cand"; then
+            if grep -q "$escapedPath" "$cand" || grep -q "$escapedComp" "$cand"; then
                 path_present=true
                 break
             fi
@@ -227,6 +251,13 @@ function maybe_add_wrapper() {
         snippet=$(cat <<'EOSNIPPET'
 # >>> goto init >>>
 GOTO_FUNC_PATH="${XDG_CONFIG_HOME:-$HOME/.config}/zsh/plugins/goto/goto.zsh"
+GOTO_COMP_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/zsh/completions"
+if [ -d "$GOTO_COMP_DIR" ]; then
+  case " ${fpath[*]} " in
+    *" $GOTO_COMP_DIR "*) ;;
+    *) fpath=("$GOTO_COMP_DIR" $fpath) ;;
+  esac
+fi
 if [ -f "$GOTO_FUNC_PATH" ]; then
   if ! . "$GOTO_FUNC_PATH" 2>&1; then
     echo "Error: Failed to source \"$(basename "$GOTO_FUNC_PATH")\"" >&2
@@ -235,7 +266,12 @@ else
   echo "Error: \"$(basename "$GOTO_FUNC_PATH")\" not found at:" >&2
   echo "  $GOTO_FUNC_PATH" >&2
 fi
+if (( ! $+_comps[to] )); then
+  autoload -Uz compinit
+  compinit -i
+fi
 unset GOTO_FUNC_PATH
+unset GOTO_COMP_DIR
 # <<< goto init <<<
 EOSNIPPET
 )
@@ -335,6 +371,18 @@ if $CONFIG_FOUND; then
 fi
 
 install_wrapper_file
+
+EXISTING_COMPLETION="$(zsh -lc 'for d in $fpath; if [ -f $d/_to ]; then print $d/_to; break; fi; done' 2>/dev/null || true)"
+if [ -n "$EXISTING_COMPLETION" ] && [ "$EXISTING_COMPLETION" != "$COMPLETION_FILE" ]; then
+  warn "existing zsh completion for 'to' found at $EXISTING_COMPLETION"
+  if ! $FORCE && ! prompt_yes "Use existing completion and skip installing ours? [y/N]: "; then
+    install_completion_file
+  else
+    printf 'Keeping existing completion at %s\n' "$EXISTING_COMPLETION"
+  fi
+else
+  install_completion_file
+fi
 
 printf 'Installing %s from %s\n' "$PROJECT_NAME" "$SCRIPT_DIR"
 printf 'Target binary: %s\n' "$TARGET_PATH"
