@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 - 2025-12-02
 
 - Added `search` subcommand (alias `s`) with keyword/path scoping, glob/regex modes, JSON output, and `to s` listing convenience.
 
