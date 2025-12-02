@@ -214,6 +214,11 @@ function maybe_add_wrapper() {
         done
     fi
 
+    if $marker_present || $path_present; then
+        printf 'Shell wrapper already present in %s; skipping add.\n' "$rc_file"
+        return
+    fi
+
     if $FORCE || prompt_yes "Add shell wrapper to ${rc_file}? [y/N]: "; then
         mkdir -p "$(dirname "$rc_file")"
         [ -f "$rc_file" ] || touch "$rc_file"
