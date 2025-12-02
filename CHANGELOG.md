@@ -7,6 +7,11 @@
 - Help consistency: bare `to` now prints Clap-generated help (same as `to -h`) before the saved-shortcuts list.
 - UX: added descriptive help text for all user-facing flags in Clap help output.
 
+## 0.2.1
+
+- Wrapper no longer hardcodes non-jump flags; it asks `to --classify` to decide when to `cd`, so new flags are handled automatically.
+- Added hidden CLI flag `--classify` (internal; reports `jump`/`nojump`).
+
 ## 0.1.0
 
 - Initial Rust implementation of `to` with keyword shortcuts, longest-prefix jumps, expirations, recents, bulk add, copy, remove, list, print-path, and Cursor flag.
