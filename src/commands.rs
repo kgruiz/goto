@@ -105,7 +105,9 @@ pub fn Execute(args: CliArgs) -> Result<()> {
             expire,
         } => {
             store.AddShortcut(&keyword, &path, expire)?;
-            output::PrintAdded(&keyword, &path, expire);
+            let resolved = store.ResolveJump(&keyword)?;
+
+            output::PrintAdded(&keyword, &resolved.targetPath, expire);
         }
         Action::AddBulk { pattern } => {
             let added = store.AddBulk(&pattern)?;
