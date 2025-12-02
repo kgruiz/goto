@@ -109,9 +109,7 @@ to() {
     --expire|\
     --no-color|\
     --__complete-mode|\
-    --__complete-input|\
-    -q|--quiet|\
-    -y|--yes|--force)
+    --__complete-input)
 
       command to "$@"
 
@@ -124,13 +122,23 @@ to() {
       ;;
   esac
 
+  # First, let the binary perform its normal jump logic (recents, expirations,
+  # creation, cursor). This won't change the parent shell's cwd.
+  if ! command to "$@"; then
+    return $?
+  fi
+
+  # Now resolve the target path and cd in the current shell.
   local dest
 
   dest="$(command to --print-path "$@")" || return
 
   [ -z "$dest" ] && return
 
-  mkdir -p "$dest"
+  if [ ! -d "$dest" ]; then
+    printf 'error: resolved path "%s" does not exist\n' "$dest" >&2
+    return 1
+  fi
 
   cd "$dest"
 }
