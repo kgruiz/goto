@@ -2,9 +2,9 @@ use crate::cli::CliArgs;
 use crate::output;
 use crate::paths::ConfigPaths;
 use crate::store::Store;
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use clap::CommandFactory;
-use clap_complete::{generate, Shell};
+use clap_complete::{Shell, generate};
 use std::env;
 use std::path::PathBuf;
 use std::process::Command;
@@ -12,17 +12,37 @@ use std::process::Command;
 pub enum Action {
     Help,
     List,
-    Add { keyword: String, path: PathBuf, expire: Option<u64> },
-    AddBulk { pattern: String },
-    Copy { existing: String, newValue: String },
-    Remove { keyword: String },
-    PrintPath { target: String },
-    Jump { target: String, runCursor: bool, create: bool },
-    Complete { mode: String, input: String },
+    ShowSort,
+    Add {
+        keyword: String,
+        path: PathBuf,
+        expire: Option<u64>,
+    },
+    AddBulk {
+        pattern: String,
+    },
+    Copy {
+        existing: String,
+        newValue: String,
+    },
+    Remove {
+        keyword: String,
+    },
+    PrintPath {
+        target: String,
+    },
+    Jump {
+        target: String,
+        runCursor: bool,
+        create: bool,
+    },
+    Complete {
+        mode: String,
+        input: String,
+    },
 }
 
 pub fn Execute(args: CliArgs) -> Result<()> {
-
     if let Some(shell) = args.generateCompletions {
         GenerateCompletions(shell)?;
         return Ok(());
@@ -37,7 +57,9 @@ pub fn Execute(args: CliArgs) -> Result<()> {
     let skipLegacyCheck = matches!(env::var("GOTO_SKIP_LEGACY_CHECK"), Ok(val) if val == "1");
 
     if !skipLegacyCheck && LegacyToDetected()? {
-        eprintln!("Detected a legacy Zsh `to` function (likely from to-zsh). Disable it before running goto.");
+        eprintln!(
+            "Detected a legacy Zsh `to` function (likely from to-zsh). Disable it before running goto."
+        );
         std::process::exit(1);
     }
 
@@ -46,6 +68,11 @@ pub fn Execute(args: CliArgs) -> Result<()> {
     if let Some(mode) = args.sortMode.as_deref() {
         store.SetSortMode(mode)?;
         output::PrintSortMode(mode);
+    }
+
+    if args.showSortMode {
+        output::PrintCurrentSortMode(&store.sortMode);
+        return Ok(());
     }
 
     let action = DetermineAction(&args)?;
@@ -58,7 +85,11 @@ pub fn Execute(args: CliArgs) -> Result<()> {
         Action::List => {
             output::PrintList(&store);
         }
-        Action::Add { keyword, path, expire } => {
+        Action::Add {
+            keyword,
+            path,
+            expire,
+        } => {
             store.AddShortcut(&keyword, &path, expire)?;
             output::PrintAdded(&keyword, &path, expire);
         }
@@ -78,7 +109,12 @@ pub fn Execute(args: CliArgs) -> Result<()> {
             let resolved = store.ResolveJump(&target)?;
             println!("{}", resolved.targetPath.display());
         }
-        Action::Jump { target, runCursor, create } => {
+        Action::ShowSort => unreachable!(),
+        Action::Jump {
+            target,
+            runCursor,
+            create,
+        } => {
             JumpAndMaybeCreate(&mut store, &target, runCursor, create)?;
         }
         Action::Complete { mode, input } => {
@@ -90,7 +126,6 @@ pub fn Execute(args: CliArgs) -> Result<()> {
 }
 
 fn DetermineAction(args: &CliArgs) -> Result<Action> {
-
     if let Some(mode) = args.completeMode.as_ref() {
         let input = args.completeInput.clone().unwrap_or_default();
 
@@ -107,6 +142,10 @@ fn DetermineAction(args: &CliArgs) -> Result<Action> {
     }
 
     if args.add.is_some() {
+        actions += 1;
+    }
+
+    if args.showSortMode {
         actions += 1;
     }
 
@@ -157,6 +196,10 @@ fn DetermineAction(args: &CliArgs) -> Result<Action> {
         });
     }
 
+    if args.showSortMode {
+        return Ok(Action::ShowSort);
+    }
+
     if let Some(keyword) = args.remove.as_ref() {
         return Ok(Action::Remove {
             keyword: keyword.to_string(),
@@ -193,7 +236,6 @@ fn DetermineAction(args: &CliArgs) -> Result<Action> {
 }
 
 fn ParseAddArgs(values: &[String]) -> Result<(String, PathBuf)> {
-
     if values.is_empty() {
         bail!("Usage: goto --add <keyword> <path>");
     }
@@ -214,7 +256,6 @@ fn ParseAddArgs(values: &[String]) -> Result<(String, PathBuf)> {
 }
 
 fn DeriveKeywordFromPath(path: &PathBuf) -> Result<String> {
-
     let name = path
         .file_name()
         .and_then(|s| s.to_str())
@@ -223,8 +264,12 @@ fn DeriveKeywordFromPath(path: &PathBuf) -> Result<String> {
     Ok(name.to_string())
 }
 
-fn JumpAndMaybeCreate(store: &mut Store, target: &str, runCursor: bool, create: bool) -> Result<()> {
-
+fn JumpAndMaybeCreate(
+    store: &mut Store,
+    target: &str,
+    runCursor: bool,
+    create: bool,
+) -> Result<()> {
     let resolved = store.ResolveJump(target)?;
 
     if resolved.targetPath.exists() {
@@ -251,15 +296,11 @@ fn JumpAndMaybeCreate(store: &mut Store, target: &str, runCursor: bool, create: 
 }
 
 fn MaybeRunCursor(path: &PathBuf, runCursor: bool) -> Result<()> {
-
     if !runCursor {
         return Ok(());
     }
 
-    let status = Command::new("cursor")
-        .arg(".")
-        .current_dir(path)
-        .status();
+    let status = Command::new("cursor").arg(".").current_dir(path).status();
 
     match status {
         Ok(status) if status.success() => Ok(()),
@@ -269,7 +310,6 @@ fn MaybeRunCursor(path: &PathBuf, runCursor: bool) -> Result<()> {
 }
 
 fn Complete(store: &Store, mode: &str, input: &str) -> Result<()> {
-
     match mode {
         "keywords" => {
             let mut suggestions = store.SortedKeywords();
@@ -352,7 +392,6 @@ fn Complete(store: &Store, mode: &str, input: &str) -> Result<()> {
 }
 
 fn ZshCompletionScript() -> &'static str {
-
     r#"#compdef to
 
 _to() {
@@ -368,6 +407,7 @@ _to() {
       '--expire[expiration timestamp]:timestamp:' \
       '--no-create[do not create missing directories]' \
       '(-s --sort)'{-s,--sort}'[set sorting mode]:mode:(added alpha recent)' \
+      '--show-sort[print current sorting mode]' \
       '(-r --rm)'{-r,--rm}'[remove shortcut]:keyword:->keywords' \
       '--generate-completions[generate completions for shell]:shell:(bash zsh fish)' \
       '*:target:->targets' && return
@@ -386,7 +426,6 @@ compdef _to to
 "#
 }
 fn GenerateCompletions(shell: Shell) -> Result<()> {
-
     if shell == Shell::Zsh {
         print!("{}", ZshCompletionScript());
         return Ok(());
@@ -400,11 +439,7 @@ fn GenerateCompletions(shell: Shell) -> Result<()> {
 }
 
 fn LegacyToDetected() -> Result<bool> {
-
-    let output = Command::new("zsh")
-        .arg("-lc")
-        .arg("whence -w to")
-        .output();
+    let output = Command::new("zsh").arg("-lc").arg("whence -w to").output();
 
     let Ok(out) = output else {
         return Ok(false);

@@ -3,11 +3,7 @@ use owo_colors::OwoColorize;
 use std::path::PathBuf;
 
 pub fn PrintHelp() {
-
-    println!(
-        "{}",
-        "to - Persistent Directory Shortcuts (Rust)".yellow()
-    );
+    println!("{}", "to - Persistent Directory Shortcuts (Rust)".yellow());
     println!();
 
     println!("{}", "Usage:".magenta());
@@ -68,13 +64,13 @@ pub fn PrintHelp() {
     );
     println!(
         "  {:<55}{}",
-        "goto --help, -h",
-        "Show this help".dimmed()
+        "goto --show-sort",
+        "Print current sorting mode".dimmed()
     );
+    println!("  {:<55}{}", "goto --help, -h", "Show this help".dimmed());
 }
 
 pub fn PrintSavedShortcuts(store: &Store) {
-
     let sorted = store.SortedKeywords();
 
     if sorted.is_empty() {
@@ -132,15 +128,11 @@ pub fn PrintSavedShortcuts(store: &Store) {
 
     println!(
         "\nCurrent sorting mode: {}",
-        store
-            .sortMode
-            .clone()
-            .ToLabel()
+        store.sortMode.clone().ToLabel()
     );
 }
 
 pub fn PrintList(store: &Store) {
-
     let keywords = store.SortedKeywords();
 
     if keywords.is_empty() {
@@ -162,7 +154,6 @@ pub fn PrintList(store: &Store) {
 }
 
 pub fn PrintAdded(keyword: &str, path: &PathBuf, expire: Option<u64>) {
-
     match expire {
         Some(ts) => println!(
             "{} {} → {} (expires {})",
@@ -181,7 +172,6 @@ pub fn PrintAdded(keyword: &str, path: &PathBuf, expire: Option<u64>) {
 }
 
 pub fn PrintBulkAdded(keywords: &[String]) {
-
     if keywords.is_empty() {
         println!("{}", "No directories matched.".yellow());
         return;
@@ -193,7 +183,6 @@ pub fn PrintBulkAdded(keywords: &[String]) {
 }
 
 pub fn PrintCopy(existing: &str, newValue: &str) {
-
     println!(
         "{} {} → {}",
         "Copied".green(),
@@ -203,12 +192,10 @@ pub fn PrintCopy(existing: &str, newValue: &str) {
 }
 
 pub fn PrintRemoved(keyword: &str) {
-
     println!("{} {}", "Removed".green(), keyword.bold().cyan());
 }
 
 pub fn PrintJump(path: &PathBuf) {
-
     println!(
         "{} {}",
         "Changed directory to".green(),
@@ -217,7 +204,6 @@ pub fn PrintJump(path: &PathBuf) {
 }
 
 pub fn PrintCreatedAndJumped(path: &PathBuf) {
-
     println!(
         "{} {}",
         "Created and changed directory to".green(),
@@ -226,8 +212,11 @@ pub fn PrintCreatedAndJumped(path: &PathBuf) {
 }
 
 pub fn PrintSortMode(mode: &str) {
-
     println!("Sorting mode set to {}", mode.bold().cyan());
+}
+
+pub fn PrintCurrentSortMode(mode: &crate::store::SortMode) {
+    println!("Current sorting mode: {}", mode.ToLabel().bold().cyan());
 }
 
 trait SortModeLabel {
@@ -236,7 +225,6 @@ trait SortModeLabel {
 
 impl SortModeLabel for crate::store::SortMode {
     fn ToLabel(&self) -> String {
-
         match self {
             crate::store::SortMode::Added => "added".to_string(),
             crate::store::SortMode::Alpha => "alpha".to_string(),

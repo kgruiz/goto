@@ -3,7 +3,12 @@ use clap::{ArgAction, Parser};
 use clap_complete::Shell;
 
 #[derive(Parser, Debug)]
-#[command(name = "to", about = "Persistent directory shortcuts (Rust CLI)", version, disable_help_subcommand = true)]
+#[command(
+    name = "to",
+    about = "Persistent directory shortcuts (Rust CLI)",
+    version,
+    disable_help_subcommand = true
+)]
 pub struct CliArgs {
     #[arg(short = 'a', long = "add", num_args = 1..=2, value_names = ["KEYWORD", "PATH"])]
     pub add: Option<Vec<String>>,
@@ -32,6 +37,9 @@ pub struct CliArgs {
     #[arg(short = 's', long = "sort", value_name = "MODE")]
     pub sortMode: Option<String>,
 
+    #[arg(long = "show-sort", action = ArgAction::SetTrue)]
+    pub showSortMode: bool,
+
     #[arg(long = "expire", value_name = "TIMESTAMP")]
     pub expire: Option<u64>,
 
@@ -52,7 +60,6 @@ pub struct CliArgs {
 }
 
 pub fn ParseArgs() -> Result<CliArgs> {
-
     let args = CliArgs::parse();
 
     Ok(args)

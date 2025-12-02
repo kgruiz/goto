@@ -8,7 +8,6 @@ use std::path::PathBuf;
 use tempfile::TempDir;
 
 fn BuildCommand(temp: &TempDir) -> Command {
-
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("to"));
 
     let home = temp.path().to_path_buf();
@@ -33,7 +32,6 @@ fn BuildCommand(temp: &TempDir) -> Command {
 }
 
 fn MakeDir(base: &TempDir, name: &str) -> PathBuf {
-
     let path = base.path().join(name);
 
     fs::create_dir_all(&path).expect("create dir");
@@ -43,7 +41,6 @@ fn MakeDir(base: &TempDir, name: &str) -> PathBuf {
 
 #[test]
 fn HelpDisplaysWhenNoArgs() {
-
     let temp = TempDir::new().unwrap();
 
     BuildCommand(&temp)
@@ -55,7 +52,6 @@ fn HelpDisplaysWhenNoArgs() {
 
 #[test]
 fn AddAndListShortcut() {
-
     let temp = TempDir::new().unwrap();
 
     let projectDir = MakeDir(&temp, "project");
@@ -81,7 +77,6 @@ fn AddAndListShortcut() {
 
 #[test]
 fn AddWithoutKeywordUsesBasename() {
-
     let temp = TempDir::new().unwrap();
 
     let dir = MakeDir(&temp, "alpha");
@@ -101,7 +96,6 @@ fn AddWithoutKeywordUsesBasename() {
 
 #[test]
 fn CopyWithNewKeywordKeepsPath() {
-
     let temp = TempDir::new().unwrap();
 
     let dir = MakeDir(&temp, "source");
@@ -126,7 +120,6 @@ fn CopyWithNewKeywordKeepsPath() {
 
 #[test]
 fn JumpCreatesWhenAllowed() {
-
     let temp = TempDir::new().unwrap();
 
     let base = MakeDir(&temp, "base");
@@ -153,7 +146,6 @@ fn JumpCreatesWhenAllowed() {
 
 #[test]
 fn JumpWithoutCreateFailsWhenFlagSet() {
-
     let temp = TempDir::new().unwrap();
 
     let base = MakeDir(&temp, "base");
@@ -172,7 +164,6 @@ fn JumpWithoutCreateFailsWhenFlagSet() {
 
 #[test]
 fn AddBulkAddsAllDirectories() {
-
     let temp = TempDir::new().unwrap();
 
     let roots = MakeDir(&temp, "roots");
@@ -199,7 +190,6 @@ fn AddBulkAddsAllDirectories() {
 
 #[test]
 fn CompletionsIncludeOptions() {
-
     let temp = TempDir::new().unwrap();
 
     BuildCommand(&temp)
@@ -209,12 +199,34 @@ fn CompletionsIncludeOptions() {
         .stdout(contains("--add-bulk"))
         .stdout(contains("--copy"))
         .stdout(contains("--no-create"))
-        .stdout(contains("--sort"));
+        .stdout(contains("--sort"))
+        .stdout(contains("--show-sort"));
+}
+
+#[test]
+fn ShowSortModePrintsCurrent() {
+    let temp = TempDir::new().unwrap();
+
+    BuildCommand(&temp)
+        .arg("--show-sort")
+        .assert()
+        .success()
+        .stdout(contains("alpha"));
+
+    BuildCommand(&temp)
+        .args(["--sort", "recent"])
+        .assert()
+        .success();
+
+    BuildCommand(&temp)
+        .arg("--show-sort")
+        .assert()
+        .success()
+        .stdout(contains("recent"));
 }
 
 #[test]
 fn CompleteKeywordsFiltersByPrefix() {
-
     let temp = TempDir::new().unwrap();
 
     let dirA = MakeDir(&temp, "apple");
@@ -240,7 +252,6 @@ fn CompleteKeywordsFiltersByPrefix() {
 
 #[test]
 fn CompleteTargetsAddsSubpaths() {
-
     let temp = TempDir::new().unwrap();
 
     let base = MakeDir(&temp, "base");
