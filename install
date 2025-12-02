@@ -101,7 +101,7 @@ to() {
   local target_present=false
   local classify
 
-  classify="$(command to --classify "$@" 2>/dev/null || true)"
+  classify="$(command to --__classify "$@" 2>/dev/null || true)"
 
   if [ "$classify" = "jump" ]; then
     target_present=true
