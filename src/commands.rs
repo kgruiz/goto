@@ -79,7 +79,10 @@ pub fn Execute(args: CliArgs) -> Result<()> {
 
     match action {
         Action::Help => {
-            output::PrintHelp();
+            let mut cmd = CliArgs::command();
+            cmd.print_help()?;
+            println!();
+
             output::PrintSavedShortcuts(&store);
         }
         Action::List => {
