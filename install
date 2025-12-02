@@ -229,6 +229,10 @@ EOSNIPPET
 )
     local snippet_no_markers
     snippet_no_markers="$(printf '%s\n' "$snippet" | sed '1d;$d')"
+    local snippet_b64
+    snippet_b64="$(printf '%s' "$snippet" | base64)"
+    local snippet_no_markers_b64
+    snippet_no_markers_b64="$(printf '%s' "$snippet_no_markers" | base64)"
     local marker_present=false
     local path_present=false
 
@@ -257,10 +261,10 @@ EOSNIPPET
         # Detect the entire snippet (with markers) already present.
         for cand in "${rc_candidates[@]}"; do
             [ -f "$cand" ] || continue
-            SNIPPET_CHECK="$snippet" python3 - "$cand" <<'PY'
-import os, pathlib, sys
+            SNIPPET_B64="$snippet_b64" python3 - "$cand" <<'PY'
+import base64, os, pathlib, sys
 path = pathlib.Path(sys.argv[1])
-needle = os.environ["SNIPPET_CHECK"]
+needle = base64.b64decode(os.environ["SNIPPET_B64"]).decode()
 sys.exit(0 if needle in path.read_text() else 1)
 PY
             if [ $? -eq 0 ]; then
@@ -274,10 +278,10 @@ PY
         # Detect the snippet body when the comment markers were removed.
         for cand in "${rc_candidates[@]}"; do
             [ -f "$cand" ] || continue
-            SNIPPET_CHECK="$snippet_no_markers" python3 - "$cand" <<'PY'
-import os, pathlib, sys
+            SNIPPET_B64="$snippet_no_markers_b64" python3 - "$cand" <<'PY'
+import base64, os, pathlib, sys
 path = pathlib.Path(sys.argv[1])
-needle = os.environ["SNIPPET_CHECK"]
+needle = base64.b64decode(os.environ["SNIPPET_B64"]).decode()
 sys.exit(0 if needle in path.read_text() else 1)
 PY
             if [ $? -eq 0 ]; then
