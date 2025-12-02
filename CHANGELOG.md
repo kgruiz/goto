@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.0 - Dec 2, 2025
+## 0.5.0 - Dec 2, 2025
 
 - `--list` now doubles as search with an optional query plus keyword/path scoping, glob/regex modes, JSON output, and result limiting.
 
