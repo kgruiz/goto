@@ -9,7 +9,6 @@ pub mod store;
 use anyhow::Result;
 
 pub fn Run() -> Result<()> {
-
     let cli = cli::ParseArgs()?;
 
     commands::Execute(cli)

@@ -1,5 +1,5 @@
 use crate::paths::ConfigPaths;
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use fd_lock::RwLock;
 use glob::glob;
 use natord::compare;
@@ -41,7 +41,6 @@ pub struct Store {
 
 impl Store {
     pub fn Load(paths: ConfigPaths) -> Result<Self> {
-
         EnsureFilesExist(&paths)?;
 
         let mut expiries = LoadNumberMap(&paths.metaFile)?;
@@ -93,7 +92,6 @@ impl Store {
     }
 
     pub fn SetSortMode(&mut self, mode: &str) -> Result<()> {
-
         let parsed = ParseSortMode(mode)?;
 
         WriteSortMode(&self.paths.userConfigFile, &parsed)?;
@@ -104,7 +102,6 @@ impl Store {
     }
 
     pub fn SortedKeywords(&self) -> Vec<String> {
-
         let mut keywords: Vec<String> = self.entries.iter().map(|e| e.keyword.clone()).collect();
 
         match self.sortMode {
@@ -124,8 +121,12 @@ impl Store {
         }
     }
 
-    pub fn AddShortcut(&mut self, keyword: &str, targetPath: &Path, expire: Option<u64>) -> Result<()> {
-
+    pub fn AddShortcut(
+        &mut self,
+        keyword: &str,
+        targetPath: &Path,
+        expire: Option<u64>,
+    ) -> Result<()> {
         if self.index.contains_key(keyword) {
             bail!("Error: Keyword '{keyword}' already exists.");
         }
@@ -135,7 +136,10 @@ impl Store {
         }
 
         if !targetPath.is_dir() {
-            bail!("Error: Path '{}' exists but is not a directory.", targetPath.display());
+            bail!(
+                "Error: Path '{}' exists but is not a directory.",
+                targetPath.display()
+            );
         }
 
         let absPath = targetPath
@@ -168,7 +172,6 @@ impl Store {
     }
 
     pub fn AddBulk(&mut self, pattern: &str) -> Result<Vec<String>> {
-
         let mut added = Vec::new();
 
         for entry in glob(pattern)? {
@@ -194,7 +197,6 @@ impl Store {
     }
 
     pub fn CopyShortcut(&mut self, existing: &str, newValue: &str) -> Result<()> {
-
         let existingEntry = self.FetchEntry(existing)?;
 
         let targetIsPath = Path::new(newValue).is_absolute() || Path::new(newValue).is_dir();
@@ -216,7 +218,6 @@ impl Store {
     }
 
     pub fn RemoveShortcut(&mut self, keyword: &str) -> Result<()> {
-
         let position = self
             .index
             .get(keyword)
@@ -241,7 +242,6 @@ impl Store {
     }
 
     pub fn ResolveJump(&self, input: &str) -> Result<ResolvedJump> {
-
         let parts: Vec<&str> = input.split('/').collect();
 
         let mut prefixes = Vec::new();
@@ -263,7 +263,10 @@ impl Store {
 
         for prefix in prefixes {
             if let Some(entry) = self.index.get(&prefix).and_then(|i| self.entries.get(*i)) {
-                let remainder = input.strip_prefix(&prefix).unwrap_or("").trim_start_matches('/');
+                let remainder = input
+                    .strip_prefix(&prefix)
+                    .unwrap_or("")
+                    .trim_start_matches('/');
 
                 let mut targetPath = entry.path.clone();
 
@@ -283,7 +286,6 @@ impl Store {
     }
 
     pub fn UpdateRecentUsage(&mut self, keyword: &str) -> Result<()> {
-
         let timestamp = CurrentEpoch();
 
         self.recents.insert(keyword.to_string(), timestamp);
@@ -294,30 +296,29 @@ impl Store {
     }
 
     pub fn SaveRecents(&self) -> Result<()> {
-
         WriteRecents(&self.paths.recentFile, &self.recents)
     }
 
     pub fn ExpiryFor(&self, keyword: &str) -> Option<u64> {
-
         self.expiries.get(keyword).copied()
     }
 
     fn FetchEntry(&self, keyword: &str) -> Result<ShortcutEntry> {
-
         let index = self
             .index
             .get(keyword)
             .copied()
             .ok_or_else(|| anyhow!("Error: Keyword '{}' not found.", keyword))?;
 
-        let entry = self.entries.get(index).ok_or_else(|| anyhow!("Internal error resolving '{}'", keyword))?;
+        let entry = self
+            .entries
+            .get(index)
+            .ok_or_else(|| anyhow!("Internal error resolving '{}'", keyword))?;
 
         Ok(entry.clone())
     }
 
     fn RebuildIndex(&mut self) {
-
         self.index.clear();
 
         for (idx, entry) in self.entries.iter().enumerate() {
@@ -327,7 +328,6 @@ impl Store {
 }
 
 pub fn ParseSortMode(raw: &str) -> Result<SortMode> {
-
     match raw {
         "added" => Ok(SortMode::Added),
         "alpha" => Ok(SortMode::Alpha),
@@ -337,7 +337,6 @@ pub fn ParseSortMode(raw: &str) -> Result<SortMode> {
 }
 
 fn EnsureFilesExist(paths: &ConfigPaths) -> Result<()> {
-
     EnsureParent(paths.configFile.parent())?;
     EnsureParent(paths.metaFile.parent())?;
     EnsureParent(paths.userConfigFile.parent())?;
@@ -351,7 +350,6 @@ fn EnsureFilesExist(paths: &ConfigPaths) -> Result<()> {
 }
 
 fn EnsureParent(parent: Option<&Path>) -> Result<()> {
-
     if let Some(dir) = parent {
         if !dir.exists() {
             fs::create_dir_all(dir)?;
@@ -362,7 +360,6 @@ fn EnsureParent(parent: Option<&Path>) -> Result<()> {
 }
 
 fn TouchIfMissing(path: &Path) -> Result<()> {
-
     if !path.exists() {
         File::create(path)?;
     }
@@ -371,7 +368,6 @@ fn TouchIfMissing(path: &Path) -> Result<()> {
 }
 
 fn LoadNumberMap(path: &Path) -> Result<HashMap<String, u64>> {
-
     let mut map = HashMap::new();
 
     if !path.exists() {
@@ -396,7 +392,6 @@ fn LoadNumberMap(path: &Path) -> Result<HashMap<String, u64>> {
 }
 
 fn LoadConfigEntries(path: &Path) -> Result<Vec<ShortcutEntry>> {
-
     let mut entries = Vec::new();
 
     if !path.exists() {
@@ -426,7 +421,6 @@ fn LoadConfigEntries(path: &Path) -> Result<Vec<ShortcutEntry>> {
 }
 
 fn CurrentEpoch() -> u64 {
-
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -434,7 +428,6 @@ fn CurrentEpoch() -> u64 {
 }
 
 fn WriteConfig(path: &Path, entries: &[ShortcutEntry]) -> Result<()> {
-
     let file = OpenOptions::new()
         .create(true)
         .read(true)
@@ -456,7 +449,6 @@ fn WriteConfig(path: &Path, entries: &[ShortcutEntry]) -> Result<()> {
 }
 
 fn WriteMeta(path: &Path, expiries: &HashMap<String, u64>) -> Result<()> {
-
     let file = OpenOptions::new()
         .create(true)
         .read(true)
@@ -478,7 +470,6 @@ fn WriteMeta(path: &Path, expiries: &HashMap<String, u64>) -> Result<()> {
 }
 
 fn WriteRecents(path: &Path, recents: &HashMap<String, u64>) -> Result<()> {
-
     let file = OpenOptions::new()
         .create(true)
         .read(true)
@@ -500,7 +491,6 @@ fn WriteRecents(path: &Path, recents: &HashMap<String, u64>) -> Result<()> {
 }
 
 fn LoadSortMode(path: &Path) -> Result<SortMode> {
-
     if !path.exists() {
         return Ok(SortMode::Alpha);
     }
@@ -523,7 +513,6 @@ fn LoadSortMode(path: &Path) -> Result<SortMode> {
 }
 
 fn WriteSortMode(path: &Path, mode: &SortMode) -> Result<()> {
-
     let mut lines = Vec::new();
 
     if path.exists() {

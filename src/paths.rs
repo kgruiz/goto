@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::env;
 use std::path::{Path, PathBuf};
 
@@ -12,7 +12,6 @@ pub struct ConfigPaths {
 
 impl ConfigPaths {
     pub fn Resolve() -> Result<Self> {
-
         let home = env::var("HOME").map_err(|_| anyhow!("HOME is not set"))?;
         let root = Path::new(&home).join(".goto");
 
@@ -33,7 +32,6 @@ impl ConfigPaths {
 }
 
 fn ResolvePath(envKey: &str, home: &str, defaultName: &str) -> PathBuf {
-
     let envValue = env::var(envKey).ok();
 
     match envValue {
