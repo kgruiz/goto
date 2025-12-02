@@ -10,40 +10,69 @@ use clap_complete::Shell;
     disable_help_subcommand = true
 )]
 pub struct CliArgs {
-    #[arg(short = 'a', long = "add", num_args = 1..=2, value_names = ["KEYWORD", "PATH"])]
+    #[arg(
+        short = 'a',
+        long = "add",
+        num_args = 1..=2,
+        value_names = ["KEYWORD", "PATH"],
+        help = "Save a shortcut (keyword + path). With one arg, keyword is derived from the path basename."
+    )]
     pub add: Option<Vec<String>>,
 
-    #[arg(long = "add-bulk", value_name = "PATTERN")]
+    #[arg(
+        long = "add-bulk",
+        value_name = "PATTERN",
+        help = "Add shortcuts for each directory matching the glob PATTERN."
+    )]
     pub addBulk: Option<String>,
 
-    #[arg(long = "copy", num_args = 2, value_names = ["EXISTING", "NEW"])]
+    #[arg(long = "copy", num_args = 2, value_names = ["EXISTING", "NEW"], help = "Duplicate an existing shortcut under a new keyword or path.")]
     pub copy: Option<Vec<String>>,
 
-    #[arg(short = 'r', long = "rm", value_name = "KEYWORD")]
+    #[arg(
+        short = 'r',
+        long = "rm",
+        value_name = "KEYWORD",
+        help = "Remove a saved shortcut."
+    )]
     pub remove: Option<String>,
 
-    #[arg(short = 'l', long = "list", action = ArgAction::SetTrue)]
+    #[arg(short = 'l', long = "list", action = ArgAction::SetTrue, help = "List all shortcuts.")]
     pub list: bool,
 
-    #[arg(short = 'p', long = "print-path", action = ArgAction::SetTrue)]
+    #[arg(short = 'p', long = "print-path", action = ArgAction::SetTrue, help = "Print the resolved path for TARGET without changing directory.")]
     pub printPath: bool,
 
-    #[arg(short = 'c', long = "cursor", action = ArgAction::SetTrue)]
+    #[arg(short = 'c', long = "cursor", action = ArgAction::SetTrue, help = "Open the target in Cursor after jumping.")]
     pub cursor: bool,
 
-    #[arg(long = "no-create", action = ArgAction::SetTrue)]
+    #[arg(long = "no-create", action = ArgAction::SetTrue, help = "Fail instead of creating missing directories on jump.")]
     pub noCreate: bool,
 
-    #[arg(short = 's', long = "sort", value_name = "MODE")]
+    #[arg(
+        short = 's',
+        long = "sort",
+        value_name = "MODE",
+        help = "Set sorting mode: added | alpha | recent."
+    )]
     pub sortMode: Option<String>,
 
-    #[arg(long = "show-sort", action = ArgAction::SetTrue)]
+    #[arg(long = "show-sort", action = ArgAction::SetTrue, help = "Print the current sorting mode.")]
     pub showSortMode: bool,
 
-    #[arg(long = "expire", value_name = "TIMESTAMP")]
+    #[arg(
+        long = "expire",
+        value_name = "TIMESTAMP",
+        help = "Expiration timestamp (seconds since epoch) for --add."
+    )]
     pub expire: Option<u64>,
 
-    #[arg(long = "generate-completions", value_enum, value_name = "SHELL")]
+    #[arg(
+        long = "generate-completions",
+        value_enum,
+        value_name = "SHELL",
+        help = "Print shell completions to stdout (bash, zsh, fish, powershell, elvish)."
+    )]
     pub generateCompletions: Option<Shell>,
 
     #[arg(long = "__complete-mode", hide = true)]
@@ -52,7 +81,7 @@ pub struct CliArgs {
     #[arg(long = "__complete-input", hide = true)]
     pub completeInput: Option<String>,
 
-    #[arg(long = "no-color", action = ArgAction::SetTrue)]
+    #[arg(long = "no-color", action = ArgAction::SetTrue, help = "Disable colored output.")]
     pub noColor: bool,
 
     #[arg(value_name = "TARGET")]
