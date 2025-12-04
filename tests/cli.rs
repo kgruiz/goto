@@ -164,6 +164,24 @@ fn JumpWithoutCreateFailsWhenFlagSet() {
 }
 
 #[test]
+fn CodeAndCursorAreMutuallyExclusive() {
+    let temp = TempDir::new().unwrap();
+
+    let base = MakeDir(&temp, "base");
+
+    BuildCommand(&temp)
+        .args(["--add", "base", base.to_str().unwrap()])
+        .assert()
+        .success();
+
+    BuildCommand(&temp)
+        .args(["base", "--cursor", "--code"])
+        .assert()
+        .failure()
+        .stderr(contains("mutually exclusive"));
+}
+
+#[test]
 fn AddBulkAddsAllDirectories() {
     let temp = TempDir::new().unwrap();
 

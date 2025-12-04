@@ -60,7 +60,7 @@ to --rm proj                             # remove
 - `-r, --remove <keyword>`
 - `-l, --list[=QUERY] [-g|--glob] [-e|--regex] [-k|--keyword-only] [-y|--path-only] [-B|--both] [-w|--within <path> | -H|--here] [-d|--max-depth N] [-j|--json] [-n|--limit N]`
 - `-p, --print-path <target>`
-- `-u, --cursor`
+- `-u, --cursor` (open in Cursor) or `-C, --code` (open in VS Code) — mutually exclusive
 - `-N, --no-create`
 - `-s, --sort added|alpha|recent` (and `--show-sort`)
 - `--completions <shell>` (alias: `--generate-completions`)

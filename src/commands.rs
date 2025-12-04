@@ -42,6 +42,7 @@ pub enum Action {
     Jump {
         target: String,
         runCursor: bool,
+        runCode: bool,
         create: bool,
     },
     Complete {
@@ -215,10 +216,11 @@ pub fn Execute(args: CliArgs) -> Result<()> {
         Action::Jump {
             target,
             runCursor,
+            runCode,
             create,
         } => {
             WarnIfWrapperMissing();
-            JumpAndMaybeCreate(&mut store, &target, runCursor, create)?;
+            JumpAndMaybeCreate(&mut store, &target, runCursor, runCode, create)?;
         }
         Action::Complete { mode, input } => {
             Complete(&store, &mode, &input)?;
@@ -305,6 +307,10 @@ fn DetermineAction(args: &CliArgs) -> Result<Action> {
         bail!("--expire can only be used with --add.");
     }
 
+    if args.cursor && args.code {
+        bail!("--cursor and --code are mutually exclusive; choose one editor.");
+    }
+
     if args.addForce && args.add.is_none() && args.copy.is_none() && args.bulkAdd.is_none() {
         bail!("--force can only be used with --add, --copy, or --bulk-add.");
     }
@@ -367,6 +373,7 @@ fn DetermineAction(args: &CliArgs) -> Result<Action> {
     Ok(Action::Jump {
         target,
         runCursor: args.cursor,
+        runCode: args.code,
         create: !args.noCreate,
     })
 }
@@ -455,6 +462,7 @@ fn JumpAndMaybeCreate(
     store: &mut Store,
     target: &str,
     runCursor: bool,
+    runCode: bool,
     create: bool,
 ) -> Result<()> {
     let resolved = store.ResolveJump(target)?;
@@ -463,7 +471,7 @@ fn JumpAndMaybeCreate(
         std::env::set_current_dir(&resolved.targetPath)?;
         output::PrintJump(&resolved.targetPath);
         store.UpdateRecentUsage(&resolved.keyword)?;
-        MaybeRunCursor(&resolved.targetPath, runCursor)?;
+        MaybeRunEditor(&resolved.targetPath, runCursor, runCode)?;
         return Ok(());
     }
 
@@ -472,7 +480,7 @@ fn JumpAndMaybeCreate(
         std::env::set_current_dir(&resolved.targetPath)?;
         output::PrintCreatedAndJumped(&resolved.targetPath);
         store.UpdateRecentUsage(&resolved.keyword)?;
-        MaybeRunCursor(&resolved.targetPath, runCursor)?;
+        MaybeRunEditor(&resolved.targetPath, runCursor, runCode)?;
         return Ok(());
     }
 
@@ -482,17 +490,23 @@ fn JumpAndMaybeCreate(
     );
 }
 
-fn MaybeRunCursor(path: &PathBuf, runCursor: bool) -> Result<()> {
-    if !runCursor {
+fn MaybeRunEditor(path: &PathBuf, runCursor: bool, runCode: bool) -> Result<()> {
+    if !runCursor && !runCode {
         return Ok(());
     }
 
-    let status = Command::new("cursor").arg(".").current_dir(path).status();
+    let (cmd, label) = if runCursor {
+        ("cursor", "cursor")
+    } else {
+        ("code", "code")
+    };
+
+    let status = Command::new(cmd).arg(".").current_dir(path).status();
 
     match status {
         Ok(status) if status.success() => Ok(()),
-        Ok(status) => bail!("cursor exited with status {}", status),
-        Err(error) => bail!("failed to run cursor: {error}"),
+        Ok(status) => bail!("{label} exited with status {}", status),
+        Err(error) => bail!("failed to run {label}: {error}"),
     }
 }
 
@@ -842,6 +856,7 @@ _to() {
       '(-j --json)'{-j,--json}'[list: output list/search as json]' \
       '(-n --limit)'{-n,--limit}'[list: limit list/search results]:N:' \
       '(-u --cursor)'{-u,--cursor}'[jump: open in Cursor]' \
+      '(-C --code)'{-C,--code}'[jump: open in VS Code]' \
       '(-N --no-create)'{-N,--no-create}'[jump: do not create missing directories]' \
       '(-x --expire)'{-x,--expire}'[add: expiration timestamp]:timestamp:' \
       '--no-color[disable colored output]' \

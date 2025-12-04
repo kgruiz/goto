@@ -108,6 +108,9 @@ pub struct CliArgs {
     #[arg(short = 'u', long = "cursor", action = ArgAction::SetTrue, help = "Open the target in Cursor after jumping.")]
     pub cursor: bool,
 
+    #[arg(short = 'C', long = "code", action = ArgAction::SetTrue, help = "Open the target in VS Code after jumping.")]
+    pub code: bool,
+
     #[arg(short = 'N', long = "no-create", action = ArgAction::SetTrue, help = "Fail instead of creating missing directories on jump.")]
     pub noCreate: bool,
 
