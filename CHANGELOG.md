@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.1 - Dec 4, 2025
+
+- Patch release to ship corrected zsh completion spec for `--list/-l` in the generated `_to` file.
+
 ## 0.8.0 - Dec 4, 2025
 
 - Added explicit editor selection: `-u/--cursor` or `-C/--code` after jump; mutually exclusive. Errors if both are provided.
