@@ -4,6 +4,7 @@
 
 - Added explicit editor selection: `-u/--cursor` or `-C/--code` after jump; mutually exclusive. Errors if both are provided.
 - Updated zsh completions, README, and tests for the editor flags.
+- Fixed zsh completion spec for `--list/-l` to avoid `_arguments` parse errors.
 
 ## 0.7.0 - Dec 4, 2025
 
