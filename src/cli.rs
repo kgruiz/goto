@@ -113,6 +113,7 @@ pub struct CliArgs {
 
     #[arg(
         long = "write-default-completions",
+        visible_aliases = ["write-completions", "install-completions"],
         action = ArgAction::SetTrue,
         requires = "generateCompletions",
         help = "Write completions to the default location for the shell instead of stdout (zsh only)."

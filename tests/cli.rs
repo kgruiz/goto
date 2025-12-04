@@ -212,11 +212,7 @@ fn WriteDefaultCompletionsWritesFile() {
 
     BuildCommand(&temp)
         .env("XDG_CONFIG_HOME", &xdg_root)
-        .args([
-            "--generate-completions",
-            "zsh",
-            "--write-default-completions",
-        ])
+        .args(["--generate-completions", "zsh", "--write-completions"])
         .assert()
         .success();
 
