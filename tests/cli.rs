@@ -205,6 +205,30 @@ fn CompletionsIncludeOptions() {
 }
 
 #[test]
+fn WriteDefaultCompletionsWritesFile() {
+    let temp = TempDir::new().unwrap();
+
+    let xdg_root = temp.path().join("xdg");
+
+    BuildCommand(&temp)
+        .env("XDG_CONFIG_HOME", &xdg_root)
+        .args([
+            "--generate-completions",
+            "zsh",
+            "--write-default-completions",
+        ])
+        .assert()
+        .success();
+
+    let target = xdg_root.join("zsh/completions/_to");
+
+    let contents = fs::read_to_string(&target).expect("completion file exists");
+
+    assert!(contents.contains("--list"));
+    assert!(contents.contains("--add-bulk"));
+}
+
+#[test]
 fn ShowSortModePrintsCurrent() {
     let temp = TempDir::new().unwrap();
 

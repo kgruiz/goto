@@ -111,6 +111,14 @@ pub struct CliArgs {
     )]
     pub generateCompletions: Option<Shell>,
 
+    #[arg(
+        long = "write-default-completions",
+        action = ArgAction::SetTrue,
+        requires = "generateCompletions",
+        help = "Write completions to the default location for the shell instead of stdout (zsh only)."
+    )]
+    pub writeDefaultCompletions: bool,
+
     #[arg(long = "install-wrapper", action = ArgAction::SetTrue, help = "Add the goto shell wrapper to your rc file (detects rc automatically unless overridden).")]
     pub installWrapper: bool,
 

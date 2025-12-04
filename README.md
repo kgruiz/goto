@@ -65,6 +65,7 @@ to --rm proj                             # remove
 - `--no-create`
 - `--sort, -s added|alpha|recent`
 - `--generate-completions <shell>`
+- `--write-default-completions` (with `--generate-completions zsh`)
 - `--no-color`
 
 ## Shell integration (cd)
@@ -91,6 +92,9 @@ Generate completion scripts:
 to --generate-completions zsh   > _to
 to --generate-completions bash  > to.bash
 to --generate-completions fish  > to.fish
+
+# write zsh completions to the default location (~/.config/zsh/completions/_to)
+to --generate-completions zsh --write-default-completions
 ```
 
 Zsh uses dynamic completion hooks for path-aware keyword + subpath behavior.

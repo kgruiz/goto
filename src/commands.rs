@@ -9,7 +9,7 @@ use glob::Pattern;
 use regex::RegexBuilder;
 use std::env;
 use std::fs;
-use std::io::IsTerminal;
+use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::OnceLock;
@@ -88,7 +88,12 @@ pub fn Execute(args: CliArgs) -> Result<()> {
     }
 
     if let Some(shell) = args.generateCompletions {
-        GenerateCompletions(shell)?;
+        if args.writeDefaultCompletions {
+            WriteDefaultCompletions(shell)?;
+        } else {
+            GenerateCompletions(shell)?;
+        }
+
         return Ok(());
     }
 
@@ -816,15 +821,64 @@ _to() {
 compdef _to to
 "#
 }
-fn GenerateCompletions(shell: Shell) -> Result<()> {
+fn EmitCompletions<W: Write>(shell: Shell, mut writer: W) -> Result<()> {
     if shell == Shell::Zsh {
-        print!("{}", ZshCompletionScript());
+        writer.write_all(ZshCompletionScript().as_bytes())?;
+
         return Ok(());
     }
 
     let mut cmd = CliArgs::command();
 
-    generate(shell, &mut cmd, "to", &mut std::io::stdout());
+    generate(shell, &mut cmd, "to", &mut writer);
+
+    Ok(())
+}
+
+fn GenerateCompletions(shell: Shell) -> Result<()> {
+    let stdout = std::io::stdout();
+    let mut handle = stdout.lock();
+
+    EmitCompletions(shell, &mut handle)?;
+
+    Ok(())
+}
+
+fn WriteDefaultCompletions(shell: Shell) -> Result<()> {
+    if shell != Shell::Zsh {
+        bail!("--write-default-completions is currently supported only for zsh");
+    }
+
+    let configHome = env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| {
+        format!(
+            "{}/.config",
+            env::var("HOME").unwrap_or_else(|_| ".".to_string())
+        )
+    });
+
+    let completionDir = PathBuf::from(configHome).join("zsh/completions");
+
+    fs::create_dir_all(&completionDir).with_context(|| {
+        format!(
+            "Failed to create completion directory at {}",
+            completionDir.display()
+        )
+    })?;
+
+    let target = completionDir.join("_to");
+
+    let mut file = fs::File::create(&target).with_context(|| {
+        format!(
+            "Failed to open completion file for writing at {}",
+            target.display()
+        )
+    })?;
+
+    EmitCompletions(shell, &mut file)?;
+
+    file.flush()?;
+
+    println!("Wrote zsh completions to {}", target.display());
 
     Ok(())
 }
