@@ -1,12 +1,12 @@
 # Changelog
 
-## 0.6.2 - Dec 4, 2025
-
-- Added `--write-default-completions` to write zsh completions directly to the default path when desired.
-
 ## 0.6.3 - Dec 4, 2025
 
 - Added shorter aliases `--write-completions` / `--install-completions` for writing completions to the default location.
+
+## 0.6.2 - Dec 4, 2025
+
+- Added `--write-default-completions` to write zsh completions directly to the default path when desired.
 
 ## 0.6.1 - Dec 4, 2025
 
