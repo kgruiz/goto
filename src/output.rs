@@ -1,4 +1,4 @@
-use crate::store::{SearchResult, Store};
+use crate::store::{AddOutcome, SearchResult, Store};
 use anyhow::Result;
 use owo_colors::OwoColorize;
 use std::path::PathBuf;
@@ -151,6 +151,107 @@ pub fn PrintAdded(keyword: &str, path: &PathBuf, expire: Option<u64>) {
             keyword.bold().cyan(),
             path.display().to_string().dimmed()
         ),
+    }
+}
+
+pub fn PrintAlreadyPresent(
+    keyword: &str,
+    path: &PathBuf,
+    expire: Option<u64>,
+    expiryChanged: bool,
+) {
+    let base = format!(
+        "Keyword '{}' already points to {}",
+        keyword.bold().cyan(),
+        path.display().to_string().dimmed()
+    );
+
+    if expiryChanged {
+        match expire {
+            Some(ts) => println!("{} (expiry updated to {})", base, ts),
+            None => println!("{} (expiry cleared)", base),
+        }
+    } else {
+        println!("{} (unchanged)", base);
+    }
+}
+
+pub fn PrintReplaced(keyword: &str, previous: &PathBuf, newPath: &PathBuf, expire: Option<u64>) {
+    match expire {
+        Some(ts) => println!(
+            "{} {}: {} → {} (expires {})",
+            "Replaced".yellow(),
+            keyword.bold().cyan(),
+            previous.display().to_string().dimmed(),
+            newPath.display().to_string().dimmed(),
+            ts
+        ),
+        None => println!(
+            "{} {}: {} → {}",
+            "Replaced".yellow(),
+            keyword.bold().cyan(),
+            previous.display().to_string().dimmed(),
+            newPath.display().to_string().dimmed()
+        ),
+    }
+}
+
+pub fn PrintDuplicateNote(keywords: &[String]) {
+    if keywords.is_empty() {
+        return;
+    }
+
+    let joined = keywords.join(", ");
+
+    println!(
+        "Note: this path is also saved under keyword(s): {}",
+        joined.bold().cyan()
+    );
+}
+
+pub fn PrintAddOutcome(
+    keyword: &str,
+    resolvedPath: &PathBuf,
+    expire: Option<u64>,
+    outcome: &AddOutcome,
+) {
+    match outcome {
+        AddOutcome::Added {
+            path,
+            expiry,
+            duplicateKeywords,
+        } => {
+            PrintAdded(keyword, path, expire.or(*expiry));
+            PrintDuplicateNote(duplicateKeywords);
+        }
+        AddOutcome::AlreadyPresent {
+            path,
+            expiry,
+            expiryChanged,
+        } => {
+            PrintAlreadyPresent(keyword, path, expire.or(*expiry), *expiryChanged);
+        }
+        AddOutcome::Replaced {
+            previousPath,
+            newPath,
+            expiry,
+        } => {
+            PrintReplaced(keyword, previousPath, newPath, expire.or(*expiry));
+        }
+    }
+
+    // Provide resolved target for caller visibility when it differs by canonicalization.
+    if resolvedPath
+        != match outcome {
+            AddOutcome::Added { path, .. } => path,
+            AddOutcome::AlreadyPresent { path, .. } => path,
+            AddOutcome::Replaced { newPath, .. } => newPath,
+        }
+    {
+        println!(
+            "Resolved path: {}",
+            resolvedPath.display().to_string().dimmed()
+        );
     }
 }
 

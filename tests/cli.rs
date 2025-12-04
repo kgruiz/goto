@@ -355,6 +355,80 @@ fn SearchJsonOutputsValid() {
 }
 
 #[test]
+fn AddSameKeywordSamePathIsNoOp() {
+    let temp = TempDir::new().unwrap();
+
+    let dir = MakeDir(&temp, "alpha");
+
+    BuildCommand(&temp)
+        .args(["--add", "alpha", dir.to_str().unwrap()])
+        .assert()
+        .success();
+
+    BuildCommand(&temp)
+        .args(["--add", "alpha", dir.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(contains("already points"));
+}
+
+#[test]
+fn AddSameKeywordDifferentPathRequiresForce() {
+    let temp = TempDir::new().unwrap();
+
+    let first = MakeDir(&temp, "one");
+    let second = MakeDir(&temp, "two");
+
+    BuildCommand(&temp)
+        .args(["--add", "proj", first.to_str().unwrap()])
+        .assert()
+        .success();
+
+    BuildCommand(&temp)
+        .args(["--add", "proj", second.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(contains("already exists"));
+
+    BuildCommand(&temp)
+        .args(["--add", "proj", second.to_str().unwrap(), "--force"])
+        .assert()
+        .success()
+        .stdout(contains("Replaced"));
+
+    let config = fs::read_to_string(temp.path().join(".goto/to_dirs")).unwrap();
+
+    assert!(config.contains(second.to_str().unwrap()));
+}
+
+#[test]
+fn AddDifferentKeywordSamePathHonorsAssumeYes() {
+    let temp = TempDir::new().unwrap();
+
+    let dir = MakeDir(&temp, "shared");
+
+    BuildCommand(&temp)
+        .args(["--add", "one", dir.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let mut without_assume = BuildCommand(&temp);
+    without_assume.env_remove("GOTO_ASSUME_YES");
+
+    without_assume
+        .args(["--add", "two", dir.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(contains("Aborted adding"));
+
+    BuildCommand(&temp)
+        .args(["--add", "two", dir.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(contains("also saved under"));
+}
+
+#[test]
 fn CheckWrapperFlagDetectsPresence() {
     let temp = TempDir::new().unwrap();
 

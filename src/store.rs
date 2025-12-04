@@ -6,6 +6,8 @@ use natord::compare;
 use regex::Regex;
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
+use std::io;
+use std::io::IsTerminal;
 use std::io::{BufRead, BufReader, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -45,6 +47,31 @@ pub struct SearchOptions {
     pub requireBoth: bool,
     pub mode: SearchMode,
     pub limit: Option<usize>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct AddBehavior {
+    pub force: bool,
+    pub assumeYes: bool,
+}
+
+#[derive(Debug, Clone)]
+pub enum AddOutcome {
+    Added {
+        path: PathBuf,
+        expiry: Option<u64>,
+        duplicateKeywords: Vec<String>,
+    },
+    AlreadyPresent {
+        path: PathBuf,
+        expiry: Option<u64>,
+        expiryChanged: bool,
+    },
+    Replaced {
+        previousPath: PathBuf,
+        newPath: PathBuf,
+        expiry: Option<u64>,
+    },
 }
 
 impl SearchMode {
@@ -227,11 +254,8 @@ impl Store {
         keyword: &str,
         targetPath: &Path,
         expire: Option<u64>,
-    ) -> Result<()> {
-        if self.index.contains_key(keyword) {
-            bail!("Error: Keyword '{keyword}' already exists.");
-        }
-
+        behavior: &AddBehavior,
+    ) -> Result<AddOutcome> {
         if !targetPath.exists() {
             bail!("Error: Path '{}' does not exist.", targetPath.display());
         }
@@ -247,6 +271,76 @@ impl Store {
             .canonicalize()
             .with_context(|| format!("Failed to resolve '{}'", targetPath.display()))?;
 
+        let duplicateKeywords: Vec<String> = self
+            .entries
+            .iter()
+            .filter(|entry| entry.path == absPath && entry.keyword != keyword)
+            .map(|entry| entry.keyword.clone())
+            .collect();
+
+        if let Some(position) = self.index.get(keyword).copied() {
+            let (existingPath, samePath) = {
+                let existing = self
+                    .entries
+                    .get(position)
+                    .ok_or_else(|| anyhow!("Internal error resolving '{keyword}'"))?;
+
+                (existing.path.clone(), existing.path == absPath)
+            };
+
+            if samePath {
+                let (expiry, expiryChanged) = self.ApplyExpiry(keyword, expire);
+
+                if expiryChanged {
+                    WriteMeta(&self.paths.metaFile, &self.expiries)?;
+                }
+
+                return Ok(AddOutcome::AlreadyPresent {
+                    path: existingPath,
+                    expiry,
+                    expiryChanged,
+                });
+            }
+
+            if !behavior.force {
+                bail!(
+                    "Error: Keyword '{keyword}' already exists for '{}'. Re-run with --force to replace it with '{}'.",
+                    existingPath.display(),
+                    absPath.display()
+                );
+            }
+
+            let previousPath = existingPath;
+
+            self.entries[position].path = absPath.clone();
+
+            let (expiry, _) = self.ApplyExpiry(keyword, expire);
+
+            WriteConfig(&self.paths.configFile, &self.entries)?;
+
+            WriteMeta(&self.paths.metaFile, &self.expiries)?;
+
+            return Ok(AddOutcome::Replaced {
+                previousPath,
+                newPath: absPath,
+                expiry,
+            });
+        }
+
+        if !duplicateKeywords.is_empty() && !behavior.force {
+            if behavior.assumeYes {
+                // proceed
+            } else {
+                let confirmed = ConfirmDuplicatePath(&absPath, keyword, &duplicateKeywords)?;
+
+                if !confirmed {
+                    bail!(
+                        "Aborted adding '{keyword}'. Use --force or set GOTO_ASSUME_YES=1 to proceed."
+                    );
+                }
+            }
+        }
+
         let entry = ShortcutEntry {
             keyword: keyword.to_string(),
             path: absPath.clone(),
@@ -256,23 +350,20 @@ impl Store {
 
         self.entries.push(entry);
 
-        match expire {
-            Some(ts) => {
-                self.expiries.insert(keyword.to_string(), ts);
-            }
-            None => {
-                self.expiries.remove(keyword);
-            }
-        }
+        let (expiry, _) = self.ApplyExpiry(keyword, expire);
 
         WriteConfig(&self.paths.configFile, &self.entries)?;
 
         WriteMeta(&self.paths.metaFile, &self.expiries)?;
 
-        Ok(())
+        Ok(AddOutcome::Added {
+            path: absPath,
+            expiry,
+            duplicateKeywords,
+        })
     }
 
-    pub fn AddBulk(&mut self, pattern: &str) -> Result<Vec<String>> {
+    pub fn AddBulk(&mut self, pattern: &str, behavior: &AddBehavior) -> Result<Vec<String>> {
         let mut added = Vec::new();
 
         for entry in glob(pattern)? {
@@ -288,7 +379,7 @@ impl Store {
                     continue;
                 }
 
-                self.AddShortcut(keyword, &path, None)?;
+                self.AddShortcut(keyword, &path, None, behavior)?;
 
                 added.push(keyword.to_string());
             }
@@ -297,7 +388,12 @@ impl Store {
         Ok(added)
     }
 
-    pub fn CopyShortcut(&mut self, existing: &str, newValue: &str) -> Result<()> {
+    pub fn CopyShortcut(
+        &mut self,
+        existing: &str,
+        newValue: &str,
+        behavior: &AddBehavior,
+    ) -> Result<()> {
         let existingEntry = self.FetchEntry(existing)?;
 
         let targetIsPath = Path::new(newValue).is_absolute() || Path::new(newValue).is_dir();
@@ -315,7 +411,8 @@ impl Store {
             (newValue.to_string(), existingEntry.path.clone())
         };
 
-        self.AddShortcut(&destKeyword, &destPath, None)
+        self.AddShortcut(&destKeyword, &destPath, None, behavior)
+            .map(|_| ())
     }
 
     pub fn RemoveShortcut(&mut self, keyword: &str) -> Result<()> {
@@ -404,6 +501,25 @@ impl Store {
         self.expiries.get(keyword).copied()
     }
 
+    fn ApplyExpiry(&mut self, keyword: &str, expire: Option<u64>) -> (Option<u64>, bool) {
+        let previous = self.expiries.get(keyword).copied();
+
+        match expire {
+            Some(ts) => {
+                self.expiries.insert(keyword.to_string(), ts);
+            }
+            None => {
+                self.expiries.remove(keyword);
+            }
+        }
+
+        let current = self.expiries.get(keyword).copied();
+
+        let changed = previous != current;
+
+        (current, changed)
+    }
+
     fn FetchEntry(&self, keyword: &str) -> Result<ShortcutEntry> {
         let index = self
             .index
@@ -426,6 +542,32 @@ impl Store {
             self.index.insert(entry.keyword.clone(), idx);
         }
     }
+}
+
+fn ConfirmDuplicatePath(path: &Path, keyword: &str, existingKeywords: &[String]) -> Result<bool> {
+    let joined = existingKeywords.join(", ");
+
+    println!(
+        "Path '{}' is already saved under keyword(s): {}.",
+        path.display(),
+        joined
+    );
+
+    print!("Add keyword '{}' for the same path? [y/N]: ", keyword);
+
+    io::stdout().flush()?;
+
+    if !io::stdin().is_terminal() {
+        return Ok(false);
+    }
+
+    let mut input = String::new();
+
+    io::stdin().read_line(&mut input)?;
+
+    let normalized = input.trim().to_lowercase();
+
+    Ok(normalized == "y" || normalized == "yes")
 }
 
 pub fn ParseSortMode(raw: &str) -> Result<SortMode> {

@@ -19,6 +19,9 @@ pub struct CliArgs {
     )]
     pub add: Option<Vec<String>>,
 
+    #[arg(long = "force", action = ArgAction::SetTrue, help = "Replace an existing keyword or skip confirmation when a path is already saved under other keywords.")]
+    pub addForce: bool,
+
     #[arg(
         long = "add-bulk",
         value_name = "PATTERN",

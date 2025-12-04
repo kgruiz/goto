@@ -54,6 +54,7 @@ to --rm proj                             # remove
 ## Options (summary)
 
 - `--add, -a [<keyword>] <path> [--expire <ts>]`
+- `--force` (with --add/--copy/--add-bulk) to replace an existing keyword or skip duplicate-path confirmation
 - `--add-bulk <pattern>`
 - `--copy <existing> <new>`
 - `--rm, -r <keyword>`

@@ -1,7 +1,7 @@
 use crate::cli::CliArgs;
 use crate::output;
 use crate::paths::ConfigPaths;
-use crate::store::{SearchMode, SearchOptions, Store};
+use crate::store::{AddBehavior, SearchMode, SearchOptions, Store};
 use anyhow::{Context, Result, bail};
 use clap::CommandFactory;
 use clap_complete::{Shell, generate};
@@ -109,6 +109,11 @@ pub fn Execute(args: CliArgs) -> Result<()> {
 
     let mut store = Store::Load(paths)?;
 
+    let addBehavior = AddBehavior {
+        force: args.addForce,
+        assumeYes: matches!(std::env::var("GOTO_ASSUME_YES"), Ok(val) if val == "1"),
+    };
+
     if let Some(mode) = args.sortMode.as_deref() {
         store.SetSortMode(mode)?;
         output::PrintSortMode(mode);
@@ -175,17 +180,16 @@ pub fn Execute(args: CliArgs) -> Result<()> {
             path,
             expire,
         } => {
-            store.AddShortcut(&keyword, &path, expire)?;
+            let outcome = store.AddShortcut(&keyword, &path, expire, &addBehavior)?;
             let resolved = store.ResolveJump(&keyword)?;
-
-            output::PrintAdded(&keyword, &resolved.targetPath, expire);
+            output::PrintAddOutcome(&keyword, &resolved.targetPath, expire, &outcome);
         }
         Action::AddBulk { pattern } => {
-            let added = store.AddBulk(&pattern)?;
+            let added = store.AddBulk(&pattern, &addBehavior)?;
             output::PrintBulkAdded(&added);
         }
         Action::Copy { existing, newValue } => {
-            store.CopyShortcut(&existing, &newValue)?;
+            store.CopyShortcut(&existing, &newValue, &addBehavior)?;
             output::PrintCopy(&existing, &newValue);
         }
         Action::Remove { keyword } => {
@@ -283,6 +287,10 @@ fn DetermineAction(args: &CliArgs) -> Result<Action> {
 
     if args.expire.is_some() && args.add.is_none() {
         bail!("--expire can only be used with --add.");
+    }
+
+    if args.addForce && args.add.is_none() && args.copy.is_none() && args.addBulk.is_none() {
+        bail!("--force can only be used with --add, --copy, or --add-bulk.");
     }
 
     if let Some(addArgs) = args.add.as_ref() {
