@@ -53,20 +53,18 @@ to --rm proj                             # remove
 
 ## Options (summary)
 
-- `--add, -a [<keyword>] <path> [--expire <ts>]`
-- `--force` (with --add/--copy/--add-bulk) to replace an existing keyword or skip duplicate-path confirmation
-- `--add-bulk <pattern>`
-- `--copy <existing> <new>`
-- `--rm, -r <keyword>`
-- `--list, -l`
-- `--list[=QUERY] [-k|--keyword] [-P|--path] [-A|--and] [-g|--glob] [-e|--regex] [-j|--json] [-n|--limit N]`
-- `--print-path, -p <target>`
-- `--cursor, -c`
-- `--no-create`
-- `--sort, -s added|alpha|recent`
-- `--generate-completions <shell>`
-- `--write-default-completions` (with `--generate-completions zsh`)
-  - aliases: `--write-completions`, `--install-completions`
+- `-a, --add [<keyword>] <path> [-x|--expire <ts>]`
+- `-b, --bulk-add <pattern>`
+- `-c, --copy <existing> <new>`
+- `-f, --force` (with add/copy/bulk-add) to replace an existing keyword or skip duplicate-path confirmation
+- `-r, --remove <keyword>`
+- `-l, --list[=QUERY] [-g|--glob] [-e|--regex] [-k|--keyword-only] [-y|--path-only] [-B|--both] [-w|--within <path> | -H|--here] [-d|--max-depth N] [-j|--json] [-n|--limit N]`
+- `-p, --print-path <target>`
+- `-u, --cursor`
+- `-N, --no-create`
+- `-s, --sort added|alpha|recent` (and `--show-sort`)
+- `--completions <shell>` (alias: `--generate-completions`)
+- `--write-default-completions` (with `--completions zsh`; aliases: `--write-completions`, `--install-completions`)
 - `--no-color`
 
 ## Shell integration (cd)
@@ -83,19 +81,19 @@ function to() {
 }
 ```
 
-For cursor support, keep passing `-c` to the binary; the wrapper simply handles `cd`.
+For cursor support, keep passing `-u` to the binary; the wrapper simply handles `cd`.
 
 ## Completions
 
 Generate completion scripts:
 
 ```bash
-to --generate-completions zsh   > _to
-to --generate-completions bash  > to.bash
-to --generate-completions fish  > to.fish
+to --completions zsh   > _to
+to --completions bash  > to.bash
+to --completions fish  > to.fish
 
 # write zsh completions to the default location (~/.config/zsh/completions/_to)
-to --generate-completions zsh --write-completions
+to --completions zsh --write-completions
 ```
 
 Zsh uses dynamic completion hooks for path-aware keyword + subpath behavior.
@@ -116,8 +114,9 @@ Zsh uses dynamic completion hooks for path-aware keyword + subpath behavior.
 ## Search
 
 - `to --list QUERY` searches keywords and paths with case-insensitive substring matching by default; omit QUERY to list everything.
-- Scope with `-k/--keyword` or `-P/--path`; combine both with `-A/--and` to require matches in both fields.
-- Pattern modes: substring (default), `-g/--glob`, or `-e/--regex` (case-insensitive).
+- Scope fields with `-k/--keyword-only` or `-y/--path-only`; combine with `-B/--both` to require matches in both.
+- Scope results to a root with `-w/--within <path>` or `-H/--here`, and limit depth with `-d/--max-depth N` (0 = root only).
+- Pattern modes: substring (default), `-g/--glob`, or `-e/--regex` (case-insensitive). Quote patterns to avoid shell expansion.
 - Output as JSON with `-j/--json`; limit rows with `-n/--limit`.
 
 ## MSRV

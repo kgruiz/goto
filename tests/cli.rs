@@ -178,7 +178,7 @@ fn AddBulkAddsAllDirectories() {
     let pattern = format!("{}/roots/*", temp.path().display());
 
     BuildCommand(&temp)
-        .args(["--add-bulk", &pattern])
+        .args(["--bulk-add", &pattern])
         .assert()
         .success()
         .stdout(contains("Added"));
@@ -194,14 +194,18 @@ fn CompletionsIncludeOptions() {
     let temp = TempDir::new().unwrap();
 
     BuildCommand(&temp)
-        .args(["--generate-completions", "zsh"])
+        .args(["--completions", "zsh"])
         .assert()
         .success()
-        .stdout(contains("--add-bulk"))
+        .stdout(contains("--bulk-add"))
         .stdout(contains("--copy"))
         .stdout(contains("--no-create"))
         .stdout(contains("--sort"))
-        .stdout(contains("--show-sort"));
+        .stdout(contains("--show-sort"))
+        .stdout(contains("--force"))
+        .stdout(contains("--within"))
+        .stdout(contains("--here"))
+        .stdout(contains("--path-only"));
 }
 
 #[test]
@@ -212,7 +216,7 @@ fn WriteDefaultCompletionsWritesFile() {
 
     BuildCommand(&temp)
         .env("XDG_CONFIG_HOME", &xdg_root)
-        .args(["--generate-completions", "zsh", "--write-completions"])
+        .args(["--completions", "zsh", "--write-completions"])
         .assert()
         .success();
 
@@ -221,7 +225,7 @@ fn WriteDefaultCompletionsWritesFile() {
     let contents = fs::read_to_string(&target).expect("completion file exists");
 
     assert!(contents.contains("--list"));
-    assert!(contents.contains("--add-bulk"));
+    assert!(contents.contains("--bulk-add"));
 }
 
 #[test]
@@ -315,11 +319,93 @@ fn SearchFiltersByKeywordAndPath() {
         .success();
 
     BuildCommand(&temp)
-        .args(["--list", "proj", "--path"])
+        .args(["--list", "proj", "--path-only"])
         .assert()
         .success()
         .stdout(contains("proj"))
         .stdout(contains("alpha").not());
+}
+
+#[test]
+fn ListHereScopesToCurrentDir() {
+    let temp = TempDir::new().unwrap();
+
+    let workspace = MakeDir(&temp, "workspace");
+    let inside = workspace.join("inside");
+    fs::create_dir_all(&inside).unwrap();
+    let outside = MakeDir(&temp, "outside");
+
+    BuildCommand(&temp)
+        .args(["--add", "in", inside.to_str().unwrap()])
+        .assert()
+        .success();
+
+    BuildCommand(&temp)
+        .args(["--add", "out", outside.to_str().unwrap()])
+        .assert()
+        .success();
+
+    BuildCommand(&temp)
+        .current_dir(&workspace)
+        .args(["--list", "--here"])
+        .assert()
+        .success()
+        .stdout(contains("in"))
+        .stdout(contains("out").not());
+}
+
+#[test]
+fn ListWithinScopesToProvidedRoot() {
+    let temp = TempDir::new().unwrap();
+
+    let workspace = MakeDir(&temp, "workspace");
+    let inside = workspace.join("nested");
+    fs::create_dir_all(&inside).unwrap();
+    let outside = MakeDir(&temp, "elsewhere");
+
+    BuildCommand(&temp)
+        .args(["--add", "nested", inside.to_str().unwrap()])
+        .assert()
+        .success();
+
+    BuildCommand(&temp)
+        .args(["--add", "elsewhere", outside.to_str().unwrap()])
+        .assert()
+        .success();
+
+    BuildCommand(&temp)
+        .args(["--list", "--within", workspace.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(contains("nested"))
+        .stdout(contains("elsewhere").not());
+}
+
+#[test]
+fn ListMaxDepthLimitsResults() {
+    let temp = TempDir::new().unwrap();
+
+    let workspace = MakeDir(&temp, "workspace");
+    let nested = workspace.join("deep/nested");
+    fs::create_dir_all(&nested).unwrap();
+
+    BuildCommand(&temp)
+        .args(["--add", "root", workspace.to_str().unwrap()])
+        .assert()
+        .success();
+
+    BuildCommand(&temp)
+        .args(["--add", "deep", nested.to_str().unwrap()])
+        .assert()
+        .success();
+
+    BuildCommand(&temp)
+        .current_dir(&workspace)
+        .args(["--list", "--here", "--max-depth", "0"])
+        .assert()
+        .success()
+        .stdout(contains("root"))
+        .stdout(contains("deep").not());
 }
 
 #[test]

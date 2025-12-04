@@ -185,7 +185,7 @@ function install_completion_file() {
 
   local action="installed"
   if [ -f "$COMPLETION_FILE" ]; then
-    if to --generate-completions zsh | cmp -s - "$COMPLETION_FILE"; then
+    if to --completions zsh | cmp -s - "$COMPLETION_FILE"; then
       action="unchanged"
     else
       action="updated"
@@ -193,7 +193,7 @@ function install_completion_file() {
   fi
 
   if [ "$action" != "unchanged" ]; then
-    to --generate-completions zsh >"$COMPLETION_FILE"
+    to --completions zsh >"$COMPLETION_FILE"
   fi
 
   printf 'Zsh completion at %s (%s)\n' "$COMPLETION_FILE" "$action"

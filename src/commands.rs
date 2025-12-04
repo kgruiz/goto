@@ -57,6 +57,8 @@ pub enum Action {
         mode: SearchMode,
         outputJson: bool,
         limit: Option<usize>,
+        within: Option<PathBuf>,
+        maxDepth: Option<usize>,
     },
     CheckWrapper {
         rcPath: String,
@@ -162,6 +164,8 @@ pub fn Execute(args: CliArgs) -> Result<()> {
             mode,
             outputJson,
             limit,
+            within,
+            maxDepth,
         } => {
             let options = SearchOptions {
                 query,
@@ -170,6 +174,8 @@ pub fn Execute(args: CliArgs) -> Result<()> {
                 requireBoth,
                 mode,
                 limit,
+                within,
+                maxDepth,
             };
 
             let results = store.Search(&options);
@@ -242,16 +248,21 @@ fn DetermineAction(args: &CliArgs) -> Result<Action> {
 
     let mut actions = 0;
 
-    let listFlagsUsed = args.listKeyword
-        || args.listPath
+    let listFlagsUsed = args.listKeywordOnly
+        || args.listPathOnly
         || args.listRequireBoth
         || args.listGlob
         || args.listRegex
         || args.listJson
-        || args.listLimit.is_some();
+        || args.listLimit.is_some()
+        || args.listWithin.is_some()
+        || args.listHere
+        || args.listMaxDepth.is_some();
 
     if listFlagsUsed && args.list.is_none() {
-        bail!("--keyword/--path/--and/--glob/--regex/--json/--limit require --list.");
+        bail!(
+            "--glob/--regex/--keyword-only/--path-only/--both/--within/--here/--max-depth/--json/--limit require --list."
+        );
     }
 
     if args.installWrapper {
@@ -270,7 +281,7 @@ fn DetermineAction(args: &CliArgs) -> Result<Action> {
         actions += 1;
     }
 
-    if args.addBulk.is_some() {
+    if args.bulkAdd.is_some() {
         actions += 1;
     }
 
@@ -294,8 +305,8 @@ fn DetermineAction(args: &CliArgs) -> Result<Action> {
         bail!("--expire can only be used with --add.");
     }
 
-    if args.addForce && args.add.is_none() && args.copy.is_none() && args.addBulk.is_none() {
-        bail!("--force can only be used with --add, --copy, or --add-bulk.");
+    if args.addForce && args.add.is_none() && args.copy.is_none() && args.bulkAdd.is_none() {
+        bail!("--force can only be used with --add, --copy, or --bulk-add.");
     }
 
     if let Some(addArgs) = args.add.as_ref() {
@@ -308,7 +319,7 @@ fn DetermineAction(args: &CliArgs) -> Result<Action> {
         });
     }
 
-    if let Some(pattern) = args.addBulk.as_ref() {
+    if let Some(pattern) = args.bulkAdd.as_ref() {
         return Ok(Action::AddBulk {
             pattern: pattern.to_string(),
         });
@@ -365,6 +376,27 @@ fn BuildListAction(args: &CliArgs, query: &str) -> Result<Action> {
         bail!("Provide a query when using --glob or --regex with --list.");
     }
 
+    let scopeRoot = if let Some(path) = args.listWithin.as_ref() {
+        Some(
+            PathBuf::from(path)
+                .canonicalize()
+                .with_context(|| format!("Failed to resolve '{}'", path))?,
+        )
+    } else if args.listHere {
+        Some(
+            std::env::current_dir()
+                .with_context(|| "Failed to resolve current directory")?
+                .canonicalize()
+                .with_context(|| "Failed to canonicalize current directory")?,
+        )
+    } else {
+        None
+    };
+
+    if args.listMaxDepth.is_some() && scopeRoot.is_none() {
+        bail!("--max-depth requires --within or --here.");
+    }
+
     let mode = if args.listGlob {
         let pattern = Pattern::new(query)?;
 
@@ -379,12 +411,14 @@ fn BuildListAction(args: &CliArgs, query: &str) -> Result<Action> {
 
     Ok(Action::Search {
         query: query.to_string(),
-        matchKeyword: args.listKeyword,
-        matchPath: args.listPath,
+        matchKeyword: args.listKeywordOnly,
+        matchPath: args.listPathOnly,
         requireBoth: args.listRequireBoth,
         mode,
         outputJson: args.listJson,
         limit: args.listLimit,
+        within: scopeRoot,
+        maxDepth: args.listMaxDepth,
     })
 }
 
@@ -781,28 +815,36 @@ _to() {
     local state
     _arguments -s -C \
       '(-h --help)'{-h,--help}'[show help]' \
-      '(-l --list)'{-l,--list}'[list or search shortcuts]::query:->listquery' \
-      '(-c --cursor)'{-c,--cursor}'[open in Cursor]' \
-      '(-p --print-path)'{-p,--print-path}'[print stored path]:target:->targets' \
+      '(-l --list)'{-l,--list}'[list or search shortcuts][::query:->listquery]' \
       '(-a --add)'{-a,--add}'[add shortcut]:keyword:->keywords :path:_files -/' \
-      '--add-bulk[add shortcuts from pattern]:pattern:_files -/' \
-      '--copy[copy existing shortcut]:existing keyword:->keywords :new:' \
-      '--expire[expiration timestamp]:timestamp:' \
-      '--no-create[do not create missing directories]' \
+      '(-b --bulk-add)'{-b,--bulk-add}'[add shortcuts from pattern]:pattern:_files -/' \
+      '(-c --copy)'{-c,--copy}'[copy existing shortcut]:existing keyword:->keywords :new:' \
+      '(-f --force)'{-f,--force}'[replace existing keyword or duplicate path]' \
+      '(-r --rm)'{-r,--rm}'[remove shortcut]:keyword:->keywords' \
+      '(-p --print-path)'{-p,--print-path}'[print stored path]:target:->targets' \
       '(-s --sort)'{-s,--sort}'[set sorting mode]:mode:(added alpha recent)' \
       '--show-sort[print current sorting mode]' \
-      '(-r --rm)'{-r,--rm}'[remove shortcut]:keyword:->keywords' \
+      '--completions[generate completions for shell]:shell:(bash zsh fish)' \
       '--install-wrapper[add goto shell wrapper to your rc file]' \
       '--install-wrapper-rc[override rc file used by --install-wrapper]:rc file:_files' \
       '--install-wrapper-force[overwrite existing wrapper when installing]' \
-      '--generate-completions[generate completions for shell]:shell:(bash zsh fish)' \
-      '--keyword[search keywords only]' \
-      '--path[search paths only]' \
-      '--and[require match in keyword and path]' \
-      '--glob[interpret list query as glob]' \
-      '--regex[interpret list query as regex]' \
-      '--json[output list/search as json]' \
-      '--limit[limit list/search results]:N:' \
+      '--write-default-completions[write completions to the default location]' \
+      '--write-completions[alias for write-default-completions]' \
+      '--install-completions[alias for write-default-completions]' \
+      '(-g --glob)'{-g,--glob}'[list: interpret query as glob]' \
+      '(-e --regex)'{-e,--regex}'[list: interpret query as regex]' \
+      '(-k --keyword-only)'{-k,--keyword-only}'[list: search keywords only]' \
+      '(-y --path-only)'{-y,--path-only}'[list: search paths only]' \
+      '(-B --both)'{-B,--both}'[list: require matches in keyword and path]' \
+      '(-w --within)'{-w,--within}'[list: scope to root]:path:_files -/' \
+      '(-H --here)'{-H,--here}'[list: scope to current directory]' \
+      '(-d --max-depth)'{-d,--max-depth}'[list: limit depth under scoped root]:depth:' \
+      '(-j --json)'{-j,--json}'[list: output list/search as json]' \
+      '(-n --limit)'{-n,--limit}'[list: limit list/search results]:N:' \
+      '(-u --cursor)'{-u,--cursor}'[jump: open in Cursor]' \
+      '(-N --no-create)'{-N,--no-create}'[jump: do not create missing directories]' \
+      '(-x --expire)'{-x,--expire}'[add: expiration timestamp]:timestamp:' \
+      '--no-color[disable colored output]' \
       '*:target:->targets' && return
 
     case $state in

@@ -47,6 +47,8 @@ pub struct SearchOptions {
     pub requireBoth: bool,
     pub mode: SearchMode,
     pub limit: Option<usize>,
+    pub within: Option<PathBuf>,
+    pub maxDepth: Option<usize>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -205,11 +207,35 @@ impl Store {
             true
         };
 
+        let within = options.within.as_ref();
+
         for keyword in keywords {
             let entry = match self.entries.iter().find(|e| e.keyword == keyword) {
                 Some(entry) => entry,
                 None => continue,
             };
+
+            if let Some(root) = within {
+                let canonical = match entry.path.canonicalize() {
+                    Ok(value) => value,
+                    Err(_) => continue,
+                };
+
+                if !canonical.starts_with(root) {
+                    continue;
+                }
+
+                if let Some(maxDepth) = options.maxDepth {
+                    let depth = match canonical.strip_prefix(root) {
+                        Ok(remainder) => remainder.components().count(),
+                        Err(_) => continue,
+                    };
+
+                    if depth > maxDepth {
+                        continue;
+                    }
+                }
+            }
 
             let keywordMatches = if matchKeyword {
                 options.mode.matches(&entry.keyword)

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.0 - Dec 4, 2025
+
+- **Breaking:** Reworked flag layout for a more Unix-like CLI (new shorts: `-b` bulk-add, `-c` copy, `-f` force, `-u` cursor, `-N` no-create, `-y` path-only, `-H` here; list field scope renamed to `--keyword-only/--path-only`, `--both` replaces `--and`).
+- Added scoped listing: `--within/-w` and `--here/-H` to show shortcuts under a root, plus `--max-depth/-d` to limit recursion (default remains non-recursive).
+- Renamed completions command to `--completions` (alias: `--generate-completions`); zsh completion script updated accordingly.
+- Updated docs, tests, and installer to reflect the new flags and completion command.
+
 ## 0.6.3 - Dec 4, 2025
 
 - Added shorter aliases `--write-completions` / `--install-completions` for writing completions to the default location.

@@ -19,17 +19,24 @@ pub struct CliArgs {
     )]
     pub add: Option<Vec<String>>,
 
-    #[arg(long = "force", action = ArgAction::SetTrue, help = "Replace an existing keyword or skip confirmation when a path is already saved under other keywords.")]
-    pub addForce: bool,
-
     #[arg(
-        long = "add-bulk",
+        short = 'b',
+        long = "bulk-add",
         value_name = "PATTERN",
         help = "Add shortcuts for each directory matching the glob PATTERN."
     )]
-    pub addBulk: Option<String>,
+    pub bulkAdd: Option<String>,
 
-    #[arg(long = "copy", num_args = 2, value_names = ["EXISTING", "NEW"], help = "Duplicate an existing shortcut under a new keyword or path.")]
+    #[arg(short = 'f', long = "force", action = ArgAction::SetTrue, help = "Replace an existing keyword or overwrite duplicate paths without prompting.")]
+    pub addForce: bool,
+
+    #[arg(
+        short = 'c',
+        long = "copy",
+        num_args = 2,
+        value_names = ["EXISTING", "NEW"],
+        help = "Duplicate an existing shortcut under a new keyword or path."
+    )]
     pub copy: Option<Vec<String>>,
 
     #[arg(
@@ -50,20 +57,39 @@ pub struct CliArgs {
     )]
     pub list: Option<String>,
 
-    #[arg(short = 'k', long = "keyword", action = ArgAction::SetTrue, help = "Search keywords only (with --list).")]
-    pub listKeyword: bool,
-
-    #[arg(short = 'P', long = "path", action = ArgAction::SetTrue, help = "Search paths only (with --list).")]
-    pub listPath: bool,
-
-    #[arg(short = 'A', long = "and", action = ArgAction::SetTrue, help = "Require matches on both keyword and path when both are searched.")]
-    pub listRequireBoth: bool,
-
     #[arg(short = 'g', long = "glob", action = ArgAction::SetTrue, conflicts_with = "listRegex", help = "Treat list query as a glob pattern.")]
     pub listGlob: bool,
 
     #[arg(short = 'e', long = "regex", action = ArgAction::SetTrue, help = "Treat list query as a regular expression (case-insensitive).")]
     pub listRegex: bool,
+
+    #[arg(short = 'k', long = "keyword-only", action = ArgAction::SetTrue, help = "Search keywords only (with --list).")]
+    pub listKeywordOnly: bool,
+
+    #[arg(short = 'y', long = "path-only", action = ArgAction::SetTrue, help = "Search paths only (with --list).")]
+    pub listPathOnly: bool,
+
+    #[arg(short = 'B', long = "both", action = ArgAction::SetTrue, help = "Require matches on both keyword and path when both are searched.")]
+    pub listRequireBoth: bool,
+
+    #[arg(
+        short = 'w',
+        long = "within",
+        value_name = "PATH",
+        help = "Limit list/search results to shortcuts under PATH."
+    )]
+    pub listWithin: Option<String>,
+
+    #[arg(short = 'H', long = "here", action = ArgAction::SetTrue, help = "Limit list/search results to shortcuts under the current directory.")]
+    pub listHere: bool,
+
+    #[arg(
+        short = 'd',
+        long = "max-depth",
+        value_name = "N",
+        help = "Limit list/search results to a maximum depth under the scoped root (0 = root only)."
+    )]
+    pub listMaxDepth: Option<usize>,
 
     #[arg(short = 'j', long = "json", action = ArgAction::SetTrue, help = "Return list/search results as JSON.")]
     pub listJson: bool,
@@ -79,10 +105,10 @@ pub struct CliArgs {
     #[arg(short = 'p', long = "print-path", action = ArgAction::SetTrue, help = "Print the resolved path for TARGET without changing directory.")]
     pub printPath: bool,
 
-    #[arg(short = 'c', long = "cursor", action = ArgAction::SetTrue, help = "Open the target in Cursor after jumping.")]
+    #[arg(short = 'u', long = "cursor", action = ArgAction::SetTrue, help = "Open the target in Cursor after jumping.")]
     pub cursor: bool,
 
-    #[arg(long = "no-create", action = ArgAction::SetTrue, help = "Fail instead of creating missing directories on jump.")]
+    #[arg(short = 'N', long = "no-create", action = ArgAction::SetTrue, help = "Fail instead of creating missing directories on jump.")]
     pub noCreate: bool,
 
     #[arg(
@@ -97,6 +123,7 @@ pub struct CliArgs {
     pub showSortMode: bool,
 
     #[arg(
+        short = 'x',
         long = "expire",
         value_name = "TIMESTAMP",
         help = "Expiration timestamp (seconds since epoch) for --add."
@@ -104,7 +131,8 @@ pub struct CliArgs {
     pub expire: Option<u64>,
 
     #[arg(
-        long = "generate-completions",
+        long = "completions",
+        visible_alias = "generate-completions",
         value_enum,
         value_name = "SHELL",
         help = "Generate shell completions to stdout."
