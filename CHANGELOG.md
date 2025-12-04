@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.0 - Dec 4, 2025
+
+- Added explicit editor selection: `-u/--cursor` or `-C/--code` after jump; mutually exclusive. Errors if both are provided.
+- Updated zsh completions, README, and tests for the editor flags.
+
 ## 0.7.0 - Dec 4, 2025
 
 - **Breaking:** Reworked flag layout for a more Unix-like CLI (new shorts: `-b` bulk-add, `-c` copy, `-f` force, `-u` cursor, `-N` no-create, `-y` path-only, `-H` here; list field scope renamed to `--keyword-only/--path-only`, `--both` replaces `--and`).
