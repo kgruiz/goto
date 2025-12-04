@@ -1,9 +1,12 @@
 # Changelog
 
-## 0.5.1 - Dec 4, 2025
+## 0.5.2 - Dec 4, 2025
 
 - Added installer + CLI wrapper audit: hidden wrapper check, user-facing `--install-wrapper`, wrapper env flag, and post-cd verification.
 - Binary now warns when the wrapper is missing for jump attempts; installer keeps rc symlinks intact.
+
+## 0.5.1 - Dec 4, 2025
+
 - Installer now preserves symlinked shell rc files when injecting the wrapper block.
 
 ## 0.5.0 - Dec 2, 2025
