@@ -186,11 +186,11 @@ function maybe_add_wrapper() {
 
     local rc_target
     if [ -L "$rc_file" ]; then
-        rc_target="$(python3 - <<'PY'
+        rc_target="$(python3 - "$rc_file" <<'PY'
 import os, sys
 print(os.path.realpath(sys.argv[1]))
 PY
-"$rc_file")"
+)"
     else
         rc_target="$rc_file"
     fi
