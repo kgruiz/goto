@@ -829,7 +829,7 @@ _to() {
     local state
     _arguments -s -C \
       '(-h --help)'{-h,--help}'[show help]' \
-      '(-l --list)'{-l,--list}'[list or search shortcuts][::query:->listquery]' \
+      '(-l --list)'{-l,--list}'[list or search shortcuts]::query:->listquery' \
       '(-a --add)'{-a,--add}'[add shortcut]:keyword:->keywords :path:_files -/' \
       '(-b --bulk-add)'{-b,--bulk-add}'[add shortcuts from pattern]:pattern:_files -/' \
       '(-c --copy)'{-c,--copy}'[copy existing shortcut]:existing keyword:->keywords :new:' \

@@ -244,6 +244,7 @@ fn WriteDefaultCompletionsWritesFile() {
 
     assert!(contents.contains("--list"));
     assert!(contents.contains("--bulk-add"));
+    assert!(contents.contains("[list or search shortcuts]::query:->listquery"));
 }
 
 #[test]
