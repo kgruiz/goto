@@ -1,5 +1,9 @@
 # Changelog
 
+# 0.6.1 - Dec 4, 2025
+
+- Fixed Zsh completion: the `--list/-l` option spec is now valid, so `_arguments` no longer errors when completing commands like `to -a keyword path`.
+
 ## 0.6.0 - Dec 4, 2025
 
 - `--add/--copy/--add-bulk` now support `--force` plus duplicate-path prompts: keeps noop for same path, allows replace with force, and warns when the path is already saved under other keywords (respecting `GOTO_ASSUME_YES`).
