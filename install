@@ -181,11 +181,13 @@ function install_wrapper_file() {
 
 function install_completion_file() {
 
+  local bin="${1:-to}"
+
   mkdir -p "$COMPLETION_DIR"
 
   local action="installed"
   if [ -f "$COMPLETION_FILE" ]; then
-    if to --completions zsh | cmp -s - "$COMPLETION_FILE"; then
+    if "$bin" --completions zsh | cmp -s - "$COMPLETION_FILE"; then
       action="unchanged"
     else
       action="updated"
@@ -193,7 +195,7 @@ function install_completion_file() {
   fi
 
   if [ "$action" != "unchanged" ]; then
-    to --completions zsh >"$COMPLETION_FILE"
+    "$bin" --completions zsh >"$COMPLETION_FILE"
   fi
 
   printf 'Zsh completion at %s (%s)\n' "$COMPLETION_FILE" "$action"
@@ -428,18 +430,6 @@ fi
 
 install_wrapper_file
 
-EXISTING_COMPLETION="$(zsh -lc 'for d in $fpath; if [ -f $d/_to ]; then print $d/_to; break; fi; done' 2>/dev/null || true)"
-if [ -n "$EXISTING_COMPLETION" ] && [ "$EXISTING_COMPLETION" != "$COMPLETION_FILE" ]; then
-  warn "existing zsh completion for 'to' found at $EXISTING_COMPLETION"
-  if ! $FORCE && ! prompt_yes "Use existing completion and skip installing ours? [y/N]: "; then
-    install_completion_file
-  else
-    printf 'Keeping existing completion at %s\n' "$EXISTING_COMPLETION"
-  fi
-else
-  install_completion_file
-fi
-
 printf 'Installing %s from %s\n' "$PROJECT_NAME" "$SCRIPT_DIR"
 printf 'Target binary: %s\n' "$TARGET_PATH"
 
@@ -458,6 +448,17 @@ if [ -x "$RESOLVED_BIN" ]; then
     printf '%s installation complete, but PATH resolves to %s (expected %s)\n' "$PROJECT_NAME" "$RESOLVED_BIN" "$TARGET_PATH"
   fi
   maybe_add_wrapper
+  EXISTING_COMPLETION="$(zsh -lc 'for d in $fpath; if [ -f $d/_to ]; then print $d/_to; break; fi; done' 2>/dev/null || true)"
+  if [ -n "$EXISTING_COMPLETION" ] && [ "$EXISTING_COMPLETION" != "$COMPLETION_FILE" ]; then
+    warn "existing zsh completion for 'to' found at $EXISTING_COMPLETION"
+    if ! $FORCE && ! prompt_yes "Use existing completion and skip installing ours? [y/N]: "; then
+      install_completion_file "$RESOLVED_BIN"
+    else
+      printf 'Keeping existing completion at %s\n' "$EXISTING_COMPLETION"
+    fi
+  else
+    install_completion_file "$RESOLVED_BIN"
+  fi
 else
   warn "installed $PROJECT_NAME but could not resolve binary on PATH; ensure \$CARGO_HOME/bin is on PATH."
 fi
