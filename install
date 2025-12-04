@@ -219,7 +219,7 @@ PY
     local startMarker="# >>> goto init >>>"
     local endMarker="# <<< goto init <<<"
     local snippet
-    snippet=$(cat <<'EOSNIPPET'
+    read -r -d '' snippet <<'EOSNIPPET' || true
 # >>> goto init >>>
 GOTO_FUNC_PATH="${XDG_CONFIG_HOME:-$HOME/.config}/zsh/plugins/goto/goto.zsh"
 GOTO_COMP_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/zsh/completions"
@@ -245,7 +245,6 @@ unset GOTO_FUNC_PATH
 unset GOTO_COMP_DIR
 # <<< goto init <<<
 EOSNIPPET
-)
     local snippet_no_markers
     snippet_no_markers="$(printf '%s\n' "$snippet" | sed '1d;$d')"
     local snippet_b64
