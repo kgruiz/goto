@@ -2,14 +2,17 @@ use crate::cli::CliArgs;
 use crate::output;
 use crate::paths::ConfigPaths;
 use crate::store::{SearchMode, SearchOptions, Store};
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use clap::CommandFactory;
 use clap_complete::{Shell, generate};
 use glob::Pattern;
 use regex::RegexBuilder;
 use std::env;
-use std::path::PathBuf;
+use std::fs;
+use std::io::IsTerminal;
+use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::OnceLock;
 
 pub enum Action {
     Help,
@@ -32,6 +35,10 @@ pub enum Action {
     PrintPath {
         target: String,
     },
+    InstallWrapper {
+        rcPath: Option<String>,
+        force: bool,
+    },
     Jump {
         target: String,
         runCursor: bool,
@@ -51,6 +58,9 @@ pub enum Action {
         outputJson: bool,
         limit: Option<usize>,
     },
+    CheckWrapper {
+        rcPath: String,
+    },
 }
 
 pub fn Execute(args: CliArgs) -> Result<()> {
@@ -63,6 +73,18 @@ pub fn Execute(args: CliArgs) -> Result<()> {
         }
 
         return Ok(());
+    }
+
+    if let Some(rcPath) = args.checkWrapper.as_ref() {
+        let path = PathBuf::from(rcPath);
+
+        let present = WrapperPresent(&path)?;
+
+        if present {
+            std::process::exit(0);
+        }
+
+        std::process::exit(1);
     }
 
     if let Some(shell) = args.generateCompletions {
@@ -106,6 +128,21 @@ pub fn Execute(args: CliArgs) -> Result<()> {
             println!();
 
             output::PrintSavedShortcuts(&store);
+        }
+        Action::InstallWrapper { rcPath, force } => {
+            let rcPath = rcPath.unwrap_or_else(|| DetectShellRc());
+            let rcPath = PathBuf::from(rcPath);
+
+            let result = InstallWrapper(&rcPath, force)?;
+
+            match result {
+                WrapperAction::Added => println!("Wrapper added to {}", rcPath.display()),
+                WrapperAction::Updated => println!("Wrapper updated in {}", rcPath.display()),
+                WrapperAction::Skipped => println!(
+                    "Wrapper already present in {} (use --install-wrapper-force to overwrite)",
+                    rcPath.display()
+                ),
+            }
         }
         Action::Search {
             query,
@@ -165,17 +202,26 @@ pub fn Execute(args: CliArgs) -> Result<()> {
             runCursor,
             create,
         } => {
+            WarnIfWrapperMissing();
             JumpAndMaybeCreate(&mut store, &target, runCursor, create)?;
         }
         Action::Complete { mode, input } => {
             Complete(&store, &mode, &input)?;
         }
+        Action::CheckWrapper { .. } => unreachable!(),
     }
 
     Ok(())
 }
 
 fn DetermineAction(args: &CliArgs) -> Result<Action> {
+    if args.installWrapper {
+        return Ok(Action::InstallWrapper {
+            rcPath: args.installWrapperRc.clone(),
+            force: args.installWrapperForce,
+        });
+    }
+
     if let Some(mode) = args.completeMode.as_ref() {
         let input = args.completeInput.clone().unwrap_or_default();
 
@@ -197,6 +243,10 @@ fn DetermineAction(args: &CliArgs) -> Result<Action> {
 
     if listFlagsUsed && args.list.is_none() {
         bail!("--keyword/--path/--and/--glob/--regex/--json/--limit require --list.");
+    }
+
+    if args.installWrapper {
+        actions += 1;
     }
 
     if args.list.is_some() {
@@ -481,6 +531,236 @@ fn Complete(store: &Store, mode: &str, input: &str) -> Result<()> {
     Ok(())
 }
 
+const WRAPPER_START: &str = "# >>> goto init >>>";
+const WRAPPER_END: &str = "# <<< goto init <<<";
+
+fn WrapperSnippet() -> &'static str {
+    r#"# >>> goto init >>>
+GOTO_FUNC_PATH="${XDG_CONFIG_HOME:-$HOME/.config}/zsh/plugins/goto/goto.zsh"
+GOTO_COMP_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/zsh/completions"
+if [ -d "$GOTO_COMP_DIR" ]; then
+  case " ${fpath[*]} " in
+    *" $GOTO_COMP_DIR "*) ;;
+    *) fpath=("$GOTO_COMP_DIR" $fpath) ;;
+  esac
+fi
+if [ -f "$GOTO_FUNC_PATH" ]; then
+  if ! . "$GOTO_FUNC_PATH" 2>&1; then
+    echo "Error: Failed to source \"$(basename \"$GOTO_FUNC_PATH\")\"" >&2
+  fi
+else
+  echo "Error: \"$(basename \"$GOTO_FUNC_PATH\")\" not found at:" >&2
+  echo "  $GOTO_FUNC_PATH" >&2
+fi
+if (( ! $+_comps[to] )); then
+  autoload -Uz compinit
+  compinit -i
+fi
+unset GOTO_FUNC_PATH
+unset GOTO_COMP_DIR
+# <<< goto init <<<
+"#
+}
+
+fn WrapperSnippetBody() -> &'static str {
+    r#"GOTO_FUNC_PATH="${XDG_CONFIG_HOME:-$HOME/.config}/zsh/plugins/goto/goto.zsh"
+GOTO_COMP_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/zsh/completions"
+if [ -d "$GOTO_COMP_DIR" ]; then
+  case " ${fpath[*]} " in
+    *" $GOTO_COMP_DIR "*) ;;
+    *) fpath=("$GOTO_COMP_DIR" $fpath) ;;
+  esac
+fi
+if [ -f "$GOTO_FUNC_PATH" ]; then
+  if ! . "$GOTO_FUNC_PATH" 2>&1; then
+    echo "Error: Failed to source \"$(basename \"$GOTO_FUNC_PATH\")\"" >&2
+  fi
+else
+  echo "Error: \"$(basename \"$GOTO_FUNC_PATH\")\" not found at:" >&2
+  echo "  $GOTO_FUNC_PATH" >&2
+fi
+if (( ! $+_comps[to] )); then
+  autoload -Uz compinit
+  compinit -i
+fi
+unset GOTO_FUNC_PATH
+unset GOTO_COMP_DIR"#
+}
+
+fn DetectShellRc() -> String {
+    let home = env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let shell = env::var("SHELL").unwrap_or_default();
+
+    if shell.ends_with("zsh") {
+        let zdotdir = env::var("ZDOTDIR").unwrap_or_else(|_| home.clone());
+
+        return format!("{}/.zshrc", zdotdir);
+    }
+
+    if shell.ends_with("bash") {
+        return format!("{}/.bashrc", home);
+    }
+
+    format!("{}/.profile", home)
+}
+
+#[derive(Debug, PartialEq)]
+enum WrapperAction {
+    Added,
+    Updated,
+    Skipped,
+}
+
+fn ResolveRcTarget(path: &Path) -> PathBuf {
+    if path.is_symlink() {
+        if let Ok(link) = fs::read_link(path) {
+            if link.is_absolute() {
+                return link;
+            }
+
+            if let Some(parent) = path.parent() {
+                return parent.join(link);
+            }
+        }
+    }
+
+    path.to_path_buf()
+}
+
+fn WrapperPresent(path: &Path) -> Result<bool> {
+    if !path.exists() {
+        return Ok(false);
+    }
+
+    let text = fs::read_to_string(path)
+        .with_context(|| format!("Failed to read rc file at {}", path.display()))?;
+
+    if text.contains(WRAPPER_START) && text.contains(WRAPPER_END) {
+        return Ok(true);
+    }
+
+    let snippet = WrapperSnippet();
+    let body = WrapperSnippetBody();
+
+    Ok(text.contains(snippet) || text.contains(body))
+}
+
+fn ReplaceWrapperBlock(text: &str, snippet: &str) -> String {
+    if let Some(start) = text.find(WRAPPER_START) {
+        if let Some(end) = text[start..].find(WRAPPER_END) {
+            let end_idx = start + end + WRAPPER_END.len();
+
+            let mut newText = String::new();
+            newText.push_str(&text[..start]);
+            if !text[..start].is_empty() && !text[..start].ends_with('\n') {
+                newText.push('\n');
+            }
+            newText.push_str(snippet);
+            if !text[end_idx..].is_empty() {
+                if !text[end_idx..].starts_with('\n') {
+                    newText.push('\n');
+                }
+                newText.push_str(&text[end_idx..]);
+            }
+
+            return newText;
+        }
+    }
+
+    text.to_string()
+}
+
+fn InstallWrapper(path: &Path, force: bool) -> Result<WrapperAction> {
+    let target = ResolveRcTarget(path);
+
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent).with_context(|| {
+            format!(
+                "Failed to create rc parent directory at {}",
+                parent.display()
+            )
+        })?;
+    }
+
+    let mut content = if target.exists() {
+        fs::read_to_string(&target)
+            .with_context(|| format!("Failed to read rc file at {}", target.display()))?
+    } else {
+        String::new()
+    };
+
+    let snippet = WrapperSnippet();
+    let body = WrapperSnippetBody();
+
+    let already_present = content.contains(snippet)
+        || content.contains(body)
+        || (content.contains(WRAPPER_START) && content.contains(WRAPPER_END));
+
+    if already_present && !force {
+        return Ok(WrapperAction::Skipped);
+    }
+
+    let mut action = if already_present {
+        WrapperAction::Updated
+    } else {
+        WrapperAction::Added
+    };
+
+    if content.contains(WRAPPER_START) && content.contains(WRAPPER_END) {
+        let replaced = ReplaceWrapperBlock(&content, snippet);
+
+        if replaced == content {
+            action = WrapperAction::Skipped;
+        }
+
+        content = replaced;
+    } else if content.contains(body) {
+        if force {
+            content = content.replace(body, "");
+            if !content.is_empty() && !content.ends_with('\n') {
+                content.push('\n');
+            }
+            content.push_str(snippet);
+            content.push('\n');
+        } else {
+            action = WrapperAction::Skipped;
+        }
+    } else if content.contains(snippet) {
+        action = WrapperAction::Skipped;
+    } else {
+        if !content.is_empty() && !content.ends_with('\n') {
+            content.push('\n');
+        }
+        content.push_str(snippet);
+        content.push('\n');
+    }
+
+    fs::write(&target, content)
+        .with_context(|| format!("Failed to write rc file at {}", target.display()))?;
+
+    Ok(action)
+}
+
+fn WarnIfWrapperMissing() {
+    static ONCE: OnceLock<()> = OnceLock::new();
+
+    ONCE.get_or_init(|| {
+        let wrapper_flag = env::var("GOTO_WRAPPER").unwrap_or_default();
+
+        if wrapper_flag == "1" {
+            return;
+        }
+
+        if !std::io::stdout().is_terminal() {
+            return;
+        }
+
+        eprintln!(
+            "warning: shell wrapper not active; jumps will not change your shell directory. Run to --install-wrapper to add it."
+        );
+    });
+}
+
 fn ZshCompletionScript() -> &'static str {
     r#"#compdef to
 
@@ -499,6 +779,9 @@ _to() {
       '(-s --sort)'{-s,--sort}'[set sorting mode]:mode:(added alpha recent)' \
       '--show-sort[print current sorting mode]' \
       '(-r --rm)'{-r,--rm}'[remove shortcut]:keyword:->keywords' \
+      '--install-wrapper[add goto shell wrapper to your rc file]' \
+      '--install-wrapper-rc[override rc file used by --install-wrapper]:rc file:_files' \
+      '--install-wrapper-force[overwrite existing wrapper when installing]' \
       '--generate-completions[generate completions for shell]:shell:(bash zsh fish)' \
       '--keyword[search keywords only]' \
       '--path[search paths only]' \

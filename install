@@ -101,7 +101,7 @@ to() {
   local target_present=false
   local classify
 
-  classify="$(command to --__classify "$@" 2>/dev/null || true)"
+  classify="$(GOTO_WRAPPER=1 command to --__classify "$@" 2>/dev/null || true)"
 
   if [ "$classify" = "jump" ]; then
     target_present=true
@@ -109,14 +109,14 @@ to() {
 
   if ! $target_present; then
 
-    command to "$@"
+    GOTO_WRAPPER=1 command to "$@"
 
     return
   fi
 
   # First, let the binary perform its normal jump logic (recents, expirations,
   # creation, cursor). This won't change the parent shell's cwd.
-  if ! command to "$@"; then
+  if ! GOTO_WRAPPER=1 command to "$@"; then
     return $?
   fi
 
@@ -132,7 +132,26 @@ to() {
     return 1
   fi
 
-  cd "$dest"
+  local dest_real
+
+  dest_real="$(cd "$dest" 2>/dev/null && pwd -P)" || {
+    printf 'error: failed to resolve "%s"\n' "$dest" >&2
+    return 1
+  }
+
+  cd "$dest_real" || {
+    printf 'error: failed to change directory to "%s"\n' "$dest_real" >&2
+    return 1
+  }
+
+  local after
+
+  after="$(pwd -P)"
+
+  if [ "$after" != "$dest_real" ]; then
+    printf 'error: directory did not change to "%s"\n' "$dest_real" >&2
+    return 1
+  fi
 }
 # <<< goto init <<<
 EOSNIPPET
@@ -233,6 +252,19 @@ EOSNIPPET
     snippet_no_markers_b64="$(printf '%s' "$snippet_no_markers" | base64)"
     local marker_present=false
     local path_present=false
+    local binary_check_missing=false
+
+    if command to --__check-wrapper "$rc_target" >/dev/null 2>&1; then
+        printf 'Shell wrapper already present in %s; skipping add.\n' "$rc_file"
+        return
+    else
+        local status=$?
+        if [ "$status" -eq 1 ]; then
+            binary_check_missing=true
+        else
+            warn "wrapper check via binary failed (status $status); falling back to script detection."
+        fi
+    fi
 
     # Gather candidate shell init files to scan
     local -a rc_candidates
@@ -255,7 +287,7 @@ EOSNIPPET
         fi
     done
 
-    if ! $marker_present; then
+    if ! $marker_present && ! $binary_check_missing; then
         # Detect the entire snippet (with markers) already present.
         for cand in "${rc_candidates[@]}"; do
             [ -f "$cand" ] || continue
@@ -272,7 +304,7 @@ PY
         done
     fi
 
-    if ! $marker_present && ! $path_present; then
+    if ! $marker_present && ! $path_present && ! $binary_check_missing; then
         # Detect the snippet body when the comment markers were removed.
         for cand in "${rc_candidates[@]}"; do
             [ -f "$cand" ] || continue

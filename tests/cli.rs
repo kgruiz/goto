@@ -353,3 +353,59 @@ fn SearchJsonOutputsValid() {
 
     assert!(parsed.is_array());
 }
+
+#[test]
+fn CheckWrapperFlagDetectsPresence() {
+    let temp = TempDir::new().unwrap();
+
+    let rc_path = temp.path().join(".zshrc");
+
+    fs::write(
+        &rc_path,
+        "# >>> goto init >>>\nGOTO_FUNC_PATH=\"${XDG_CONFIG_HOME:-$HOME/.config}/zsh/plugins/goto/goto.zsh\"\n# <<< goto init <<<\n",
+    )
+    .unwrap();
+
+    BuildCommand(&temp)
+        .args(["--__check-wrapper", rc_path.to_str().unwrap()])
+        .assert()
+        .success();
+
+    fs::write(&rc_path, "# empty\n").unwrap();
+
+    BuildCommand(&temp)
+        .args(["--__check-wrapper", rc_path.to_str().unwrap()])
+        .assert()
+        .failure();
+}
+
+#[test]
+fn InstallWrapperAddsWhenMissing() {
+    let temp = TempDir::new().unwrap();
+
+    let rc_dir = temp.path().join("zdot");
+    fs::create_dir_all(&rc_dir).unwrap();
+    let rc_path = rc_dir.join(".zshrc");
+
+    let mut cmd = BuildCommand(&temp);
+    cmd.env("SHELL", "/bin/zsh");
+    cmd.env("ZDOTDIR", rc_dir.to_str().unwrap());
+
+    cmd.arg("--install-wrapper")
+        .assert()
+        .success()
+        .stdout(contains("Wrapper added"));
+
+    let contents = fs::read_to_string(&rc_path).unwrap();
+    assert!(contents.contains("# >>> goto init >>>"));
+
+    let mut second = BuildCommand(&temp);
+    second.env("SHELL", "/bin/zsh");
+    second.env("ZDOTDIR", rc_dir.to_str().unwrap());
+
+    second
+        .arg("--install-wrapper")
+        .assert()
+        .success()
+        .stdout(contains("Wrapper already present"));
+}

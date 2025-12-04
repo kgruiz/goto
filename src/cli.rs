@@ -108,6 +108,23 @@ pub struct CliArgs {
     )]
     pub generateCompletions: Option<Shell>,
 
+    #[arg(long = "install-wrapper", action = ArgAction::SetTrue, help = "Add the goto shell wrapper to your rc file (detects rc automatically unless overridden).")]
+    pub installWrapper: bool,
+
+    #[arg(
+        long = "install-wrapper-rc",
+        value_name = "RC_PATH",
+        requires = "installWrapper",
+        help = "Override rc file path used by --install-wrapper."
+    )]
+    pub installWrapperRc: Option<String>,
+
+    #[arg(long = "install-wrapper-force", action = ArgAction::SetTrue, help = "Overwrite existing goto wrapper when using --install-wrapper.")]
+    pub installWrapperForce: bool,
+
+    #[arg(long = "__check-wrapper", hide = true)]
+    pub checkWrapper: Option<String>,
+
     #[arg(long = "__classify", hide = true, action = ArgAction::SetTrue)]
     pub classifyInvocation: bool,
 
