@@ -1,6 +1,7 @@
 # Changelog
 
-# 0.6.1 - Dec 4, 2025
+
+## 0.6.1 - Dec 4, 2025
 
 - Fixed Zsh completion: the `--list/-l` option spec is now valid, so `_arguments` no longer errors when completing commands like `to -a keyword path`.
 
