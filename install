@@ -184,6 +184,17 @@ function maybe_add_wrapper() {
     local rc_file
     rc_file="$(detect_shell_rc)"
 
+    local rc_target
+    if [ -L "$rc_file" ]; then
+        rc_target="$(python3 - <<'PY'
+import os, sys
+print(os.path.realpath(sys.argv[1]))
+PY
+"$rc_file")"
+    else
+        rc_target="$rc_file"
+    fi
+
     local startMarker="# >>> goto init >>>"
     local endMarker="# <<< goto init <<<"
     local snippet
@@ -284,8 +295,8 @@ PY
     fi
 
     if $FORCE || prompt_yes "Add shell wrapper to ${rc_file}? [y/N]: "; then
-        mkdir -p "$(dirname "$rc_file")"
-        [ -f "$rc_file" ] || touch "$rc_file"
+        mkdir -p "$(dirname "$rc_target")"
+        [ -f "$rc_target" ] || touch "$rc_target"
 
         local escapedSnippet
         escapedSnippet="$(printf '%s\n' "$snippet" | sed -e 's/[\\/&]/\\&/g')"
@@ -294,7 +305,7 @@ PY
         local blockAction="added"
 
         if $marker_present; then
-            SNIPPET="$snippet" python3 - "$rc_file" "$startMarker" "$endMarker" >"$tempFile" <<'PY'
+            SNIPPET="$snippet" python3 - "$rc_target" "$startMarker" "$endMarker" >"$tempFile" <<'PY'
 import sys, re, pathlib, os
 path, start, end = sys.argv[1:]
 snippet = os.environ["SNIPPET"]
@@ -304,9 +315,9 @@ new = pattern.sub(snippet, text)
 sys.stdout.write(new)
 PY
             blockAction="updated"
-        elif grep -q 'command to --print-path' "$rc_file"; then
+        elif grep -q 'command to --print-path' "$rc_target"; then
             # legacy block; replace whole function with new snippet
-            SNIPPET="$snippet" python3 - "$rc_file" "$startMarker" "$endMarker" >"$tempFile" <<'PY'
+            SNIPPET="$snippet" python3 - "$rc_target" "$startMarker" "$endMarker" >"$tempFile" <<'PY'
 import sys, pathlib, os
 path = sys.argv[1]
 snippet = os.environ["SNIPPET"]
@@ -322,15 +333,16 @@ PY
             rm "$tempFile"
             return
         else
-            cat "$rc_file" > "$tempFile"
+            cat "$rc_target" > "$tempFile"
             printf '\n%s\n' "$snippet" >> "$tempFile"
         fi
 
-        if cmp -s "$tempFile" "$rc_file"; then
+        if cmp -s "$tempFile" "$rc_target"; then
             blockAction="unchanged"
             rm "$tempFile"
         else
-            mv "$tempFile" "$rc_file"
+            cat "$tempFile" >"$rc_target"
+            rm "$tempFile"
         fi
 
         printf 'Shell wrapper in %s (%s). Reload your shell to use it.\n' "$rc_file" "$blockAction"
