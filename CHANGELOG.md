@@ -4,6 +4,10 @@
 
 - Patch release to ship corrected zsh completion spec for `--list/-l` in the generated `_to` file.
 
+## 0.8.3 - Dec 4, 2025
+
+- Patch version bump.
+
 ## 0.8.2 - Dec 4, 2025
 
 - Fixed installer heredoc so `./install --force` no longer fails with a `;;` syntax error while writing the wrapper snippet.
