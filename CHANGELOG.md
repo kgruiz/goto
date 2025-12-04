@@ -4,6 +4,10 @@
 
 - Added `--write-default-completions` to write zsh completions directly to the default path when desired.
 
+## 0.6.3 - Dec 4, 2025
+
+- Added shorter aliases `--write-completions` / `--install-completions` for writing completions to the default location.
+
 ## 0.6.1 - Dec 4, 2025
 
 - Fixed Zsh completion: the `--list/-l` option spec is now valid, so `_arguments` no longer errors when completing commands like `to -a keyword path`.
