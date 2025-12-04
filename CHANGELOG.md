@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.0 - Dec 4, 2025
+
+- `--add/--copy/--add-bulk` now support `--force` plus duplicate-path prompts: keeps noop for same path, allows replace with force, and warns when the path is already saved under other keywords (respecting `GOTO_ASSUME_YES`).
+- Added clearer output for replaced/duplicate shortcuts and expiry updates.
+
 ## 0.5.2 - Dec 4, 2025
 
 - Added installer + CLI wrapper audit: hidden wrapper check, user-facing `--install-wrapper`, wrapper env flag, and post-cd verification.
