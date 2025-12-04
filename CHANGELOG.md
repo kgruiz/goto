@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.2 - Dec 4, 2025
+
+- Added `--write-default-completions` to write zsh completions directly to the default path when desired.
 
 ## 0.6.1 - Dec 4, 2025
 
