@@ -776,7 +776,7 @@ _to() {
     local state
     _arguments -s -C \
       '(-h --help)'{-h,--help}'[show help]' \
-      '(-l --list)'{-l,--list}'[list or search shortcuts][::query:->listquery]' \
+      '(-l --list)'{-l,--list}'[list or search shortcuts]::query:->listquery' \
       '(-c --cursor)'{-c,--cursor}'[open in Cursor]' \
       '(-p --print-path)'{-p,--print-path}'[print stored path]:target:->targets' \
       '(-a --add)'{-a,--add}'[add shortcut]:keyword:->keywords :path:_files -/' \
