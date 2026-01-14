@@ -941,7 +941,10 @@ fn WriteDefaultCompletions(shell: Shell) -> Result<()> {
 }
 
 fn LegacyToDetected() -> Result<bool> {
-    let output = Command::new("zsh").arg("-lc").arg("whence -w to").output();
+    let output = Command::new("zsh")
+        .arg("-lc")
+        .arg("typeset -f to")
+        .output();
 
     let Ok(out) = output else {
         return Ok(false);
@@ -949,7 +952,15 @@ fn LegacyToDetected() -> Result<bool> {
 
     let stdout = String::from_utf8_lossy(&out.stdout);
 
-    let detected = stdout.contains("function") || stdout.contains("to ()");
+    if stdout.trim().is_empty() {
+        return Ok(false);
+    }
 
-    Ok(detected)
+    if stdout.contains("GOTO_WRAPPER=1 command to --__classify")
+        || stdout.contains("command to --__classify")
+    {
+        return Ok(false);
+    }
+
+    Ok(true)
 }
