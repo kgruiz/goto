@@ -1,8 +1,10 @@
 use crate::paths::ConfigPaths;
 use anyhow::{Context, Result, anyhow, bail};
 use fd_lock::RwLock;
-use glob::{Pattern, glob};
+use glob::{MatchOptions, Pattern, glob};
 use natord::compare;
+use nucleo_matcher::pattern::Pattern as FuzzyPattern;
+use nucleo_matcher::{Config, Matcher, Utf32Str};
 use regex::Regex;
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
@@ -34,9 +36,12 @@ pub struct SearchResult {
 
 #[derive(Debug, Clone)]
 pub enum SearchMode {
-    Substring(String),
-    Glob(Pattern),
+    Glob {
+        pattern: Pattern,
+        caseSensitive: bool,
+    },
     Regex(Regex),
+    Fuzzy(FuzzyPattern),
 }
 
 #[derive(Debug, Clone)]
@@ -77,18 +82,61 @@ pub enum AddOutcome {
 }
 
 impl SearchMode {
-    pub fn matches(&self, value: &str) -> bool {
+    pub fn Score(
+        &self,
+        value: &str,
+        matcher: &mut Matcher,
+        charBuffer: &mut Vec<char>,
+    ) -> Option<u64> {
         match self {
-            SearchMode::Substring(query) => {
-                let haystack = value.to_lowercase();
-                let needle = query.to_lowercase();
+            SearchMode::Glob {
+                pattern,
+                caseSensitive,
+            } => pattern
+                .matches_with(
+                    value,
+                    MatchOptions {
+                        case_sensitive: *caseSensitive,
+                        ..MatchOptions::default()
+                    },
+                )
+                .then_some(0),
+            SearchMode::Regex(regex) => regex.is_match(value).then_some(0),
+            SearchMode::Fuzzy(pattern) => {
+                charBuffer.clear();
 
-                haystack.contains(&needle)
+                let haystack = Utf32Str::new(value, charBuffer);
+
+                pattern.score(haystack, matcher).map(u64::from)
             }
-            SearchMode::Glob(pattern) => pattern.matches(value),
-            SearchMode::Regex(regex) => regex.is_match(value),
         }
     }
+}
+
+fn RankFuzzyScore(value: &str, query: &str, score: u64, keyword: bool) -> u64 {
+    const SCORE_RANGE: u64 = u32::MAX as u64 + 1;
+
+    let caseSensitive = query.chars().any(char::is_uppercase);
+
+    let (candidate, needle) = if caseSensitive {
+        (value.to_string(), query.to_string())
+    } else {
+        (value.to_lowercase(), query.to_lowercase())
+    };
+
+    let matchTier = if candidate == needle {
+        3
+    } else if candidate.starts_with(&needle) {
+        2
+    } else if candidate.contains(&needle) {
+        1
+    } else {
+        0
+    };
+
+    let keywordTier = u64::from(keyword) * 4;
+
+    (keywordTier + matchTier) * SCORE_RANGE + score
 }
 
 #[derive(Debug, Clone)]
@@ -191,25 +239,23 @@ impl Store {
     }
 
     pub fn Search(&self, options: &SearchOptions) -> Vec<SearchResult> {
-        let mut results = Vec::new();
+        let mut scoredResults = Vec::new();
 
         let keywords = self.SortedKeywords();
 
-        let matchKeyword = if options.matchKeyword || options.matchPath {
-            options.matchKeyword
-        } else {
-            true
-        };
+        let fuzzy = matches!(options.mode, SearchMode::Fuzzy(_));
 
-        let matchPath = if options.matchKeyword || options.matchPath {
-            options.matchPath
-        } else {
-            true
-        };
+        let mut matcher = Matcher::new(Config::DEFAULT.match_paths());
+
+        let mut charBuffer = Vec::new();
+
+        let matchKeyword = options.matchKeyword || !options.matchPath;
+
+        let matchPath = options.matchPath;
 
         let within = options.within.as_ref();
 
-        for keyword in keywords {
+        for (position, keyword) in keywords.into_iter().enumerate() {
             let entry = match self.entries.iter().find(|e| e.keyword == keyword) {
                 Some(entry) => entry,
                 None => continue,
@@ -237,42 +283,76 @@ impl Store {
                 }
             }
 
-            let keywordMatches = if matchKeyword {
-                options.mode.matches(&entry.keyword)
+            let keywordScore = if matchKeyword {
+                options
+                    .mode
+                    .Score(&entry.keyword, &mut matcher, &mut charBuffer)
+                    .map(|score| {
+                        if fuzzy {
+                            RankFuzzyScore(&entry.keyword, &options.query, score, true)
+                        } else {
+                            score
+                        }
+                    })
             } else {
-                false
+                None
             };
 
-            let pathMatches = if matchPath {
+            let pathScore = if matchPath {
                 let pathStr = entry.path.to_string_lossy().to_string();
 
-                options.mode.matches(&pathStr)
+                options
+                    .mode
+                    .Score(&pathStr, &mut matcher, &mut charBuffer)
+                    .map(|score| {
+                        if fuzzy {
+                            RankFuzzyScore(&pathStr, &options.query, score, false)
+                        } else {
+                            score
+                        }
+                    })
             } else {
-                false
+                None
             };
 
-            let include = if options.requireBoth && matchKeyword && matchPath {
-                keywordMatches && pathMatches
+            let score = if options.requireBoth && matchKeyword && matchPath {
+                match (keywordScore, pathScore) {
+                    (Some(keywordScore), Some(pathScore)) => {
+                        Some(keywordScore.saturating_add(pathScore))
+                    }
+                    _ => None,
+                }
             } else {
-                (matchKeyword && keywordMatches) || (matchPath && pathMatches)
+                keywordScore.into_iter().chain(pathScore).max()
             };
 
-            if include {
-                results.push(SearchResult {
+            let Some(score) = score else {
+                continue;
+            };
+
+            scoredResults.push((
+                SearchResult {
                     keyword: entry.keyword.clone(),
                     path: entry.path.clone(),
                     expiry: self.expiries.get(&entry.keyword).copied(),
-                });
-
-                if let Some(limit) = options.limit {
-                    if results.len() >= limit {
-                        break;
-                    }
-                }
-            }
+                },
+                score,
+                position,
+            ));
         }
 
-        results
+        if fuzzy {
+            scoredResults.sort_by(|left, right| right.1.cmp(&left.1).then(left.2.cmp(&right.2)));
+        }
+
+        if let Some(limit) = options.limit {
+            scoredResults.truncate(limit);
+        }
+
+        scoredResults
+            .into_iter()
+            .map(|(result, _, _)| result)
+            .collect()
     }
 
     pub fn AddShortcut(

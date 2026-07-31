@@ -40,6 +40,30 @@ fn MakeDir(base: &TempDir, name: &str) -> PathBuf {
     path
 }
 
+fn SearchKeywords(temp: &TempDir, args: &[&str]) -> Vec<String> {
+    let output = BuildCommand(temp)
+        .args(args)
+        .arg("--json")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let parsed: Value = serde_json::from_slice(&output).unwrap();
+
+    let mut keywords: Vec<String> = parsed
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry["keyword"].as_str().unwrap().to_string())
+        .collect();
+
+    keywords.sort();
+
+    keywords
+}
+
 #[test]
 fn HelpDisplaysWhenNoArgs() {
     let temp = TempDir::new().unwrap();
@@ -70,7 +94,7 @@ fn AddAndListShortcut() {
         .stdout(contains("proj"));
 
     BuildCommand(&temp)
-        .args(["--print-path", "proj"])
+        .args(["-P", "proj"])
         .assert()
         .success()
         .stdout(contains(projectDir.to_str().unwrap()));
@@ -223,7 +247,14 @@ fn CompletionsIncludeOptions() {
         .stdout(contains("--force"))
         .stdout(contains("--within"))
         .stdout(contains("--here"))
-        .stdout(contains("--path-only"));
+        .stdout(contains("--path"))
+        .stdout(contains("--any"))
+        .stdout(contains("--both"))
+        .stdout(contains("--keyword-only").not())
+        .stdout(contains("--path-only").not())
+        .stdout(contains("--regex").not())
+        .stdout(contains("-F"))
+        .stdout(contains("--fuzzy"));
 }
 
 #[test]
@@ -320,29 +351,161 @@ fn CompleteTargetsAddsSubpaths() {
 }
 
 #[test]
-fn SearchFiltersByKeywordAndPath() {
+fn SearchFieldScopesSelectKeywordsAndPaths() {
     let temp = TempDir::new().unwrap();
 
-    let alpha = MakeDir(&temp, "alpha");
-
-    let nested = MakeDir(&temp, "projects/client-a");
+    let keywordDir = MakeDir(&temp, "keyword-match");
+    let pathDir = MakeDir(&temp, "path-match-docs");
+    let bothDir = MakeDir(&temp, "both-match-docs");
 
     BuildCommand(&temp)
-        .args(["--add", "alpha", alpha.to_str().unwrap()])
+        .args(["--add", "docs", keywordDir.to_str().unwrap()])
         .assert()
         .success();
 
     BuildCommand(&temp)
-        .args(["--add", "proj", nested.to_str().unwrap()])
+        .args(["--add", "archive", pathDir.to_str().unwrap()])
         .assert()
         .success();
 
     BuildCommand(&temp)
-        .args(["--list", "proj", "--path-only"])
+        .args(["--add", "documents", bothDir.to_str().unwrap()])
+        .assert()
+        .success();
+
+    assert_eq!(
+        SearchKeywords(&temp, &["--list", "doc"]),
+        ["docs", "documents"]
+    );
+
+    assert_eq!(
+        SearchKeywords(&temp, &["--list", "--path", "doc"]),
+        ["archive", "documents"]
+    );
+
+    assert_eq!(
+        SearchKeywords(&temp, &["--list", "doc", "--any"]),
+        ["archive", "docs", "documents"]
+    );
+
+    assert_eq!(
+        SearchKeywords(&temp, &["--list", "doc", "--both"]),
+        ["documents"]
+    );
+}
+
+#[test]
+fn SearchUsesSmartCaseRegexByDefault() {
+    let temp = TempDir::new().unwrap();
+
+    let gotoDir = MakeDir(&temp, "goto-dir");
+
+    BuildCommand(&temp)
+        .args(["--add", "GoTo", gotoDir.to_str().unwrap()])
+        .assert()
+        .success();
+
+    BuildCommand(&temp)
+        .args(["--list", "^g.*o$"])
         .assert()
         .success()
-        .stdout(contains("proj"))
-        .stdout(contains("alpha").not());
+        .stdout(contains("GoTo"));
+
+    BuildCommand(&temp)
+        .args(["--list", "GOTO"])
+        .assert()
+        .success()
+        .stdout(contains("GoTo").not());
+}
+
+#[test]
+fn SearchRejectsInvalidDefaultRegex() {
+    let temp = TempDir::new().unwrap();
+
+    BuildCommand(&temp)
+        .args(["--list", "*go*"])
+        .assert()
+        .failure()
+        .stderr(contains("Invalid regular expression '*go*'"));
+}
+
+#[test]
+fn SearchGlobUsesSmartCase() {
+    let temp = TempDir::new().unwrap();
+
+    let gotoDir = MakeDir(&temp, "goto-dir");
+
+    BuildCommand(&temp)
+        .args(["--add", "GoTo", gotoDir.to_str().unwrap()])
+        .assert()
+        .success();
+
+    BuildCommand(&temp)
+        .args(["--list", "*GO*", "--glob"])
+        .assert()
+        .success()
+        .stdout(contains("GoTo").not());
+
+    BuildCommand(&temp)
+        .args(["--list", "*go*", "--glob"])
+        .assert()
+        .success()
+        .stdout(contains("GoTo"));
+}
+
+#[test]
+fn FuzzySearchMatchesAndRanksByRelevance() {
+    let temp = TempDir::new().unwrap();
+
+    let weakerDir = MakeDir(&temp, "weaker");
+    let gotoDir = MakeDir(&temp, "goto-dir");
+
+    BuildCommand(&temp)
+        .args(["--add", "great-town-office", weakerDir.to_str().unwrap()])
+        .assert()
+        .success();
+
+    BuildCommand(&temp)
+        .args(["--add", "goto", gotoDir.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let output = BuildCommand(&temp)
+        .args(["--list", "--fuzzy", "go"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let output = String::from_utf8(output).unwrap();
+
+    let gotoPosition = output.find("goto").unwrap();
+    let weakerPosition = output.find("great-town-office").unwrap();
+
+    assert!(gotoPosition < weakerPosition);
+}
+
+#[test]
+fn SearchModesAreMutuallyExclusive() {
+    let temp = TempDir::new().unwrap();
+
+    BuildCommand(&temp)
+        .args(["--list", "go", "--glob", "--fuzzy"])
+        .assert()
+        .failure()
+        .stderr(contains("cannot be used with"));
+}
+
+#[test]
+fn SearchScopesAreMutuallyExclusive() {
+    let temp = TempDir::new().unwrap();
+
+    BuildCommand(&temp)
+        .args(["--list", "go", "--path", "--any"])
+        .assert()
+        .failure()
+        .stderr(contains("cannot be used with"));
 }
 
 #[test]

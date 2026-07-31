@@ -6,6 +6,7 @@ use anyhow::{Context, Result, bail};
 use clap::CommandFactory;
 use clap_complete::{Shell, generate};
 use glob::Pattern;
+use nucleo_matcher::pattern::{AtomKind, CaseMatching, Normalization, Pattern as FuzzyPattern};
 use regex::RegexBuilder;
 use std::env;
 use std::fs;
@@ -250,11 +251,11 @@ fn DetermineAction(args: &CliArgs) -> Result<Action> {
 
     let mut actions = 0;
 
-    let listFlagsUsed = args.listKeywordOnly
-        || args.listPathOnly
-        || args.listRequireBoth
+    let listFlagsUsed = args.listPath
+        || args.listAny
+        || args.listBoth
         || args.listGlob
-        || args.listRegex
+        || args.listFuzzy
         || args.listJson
         || args.listLimit.is_some()
         || args.listWithin.is_some()
@@ -263,7 +264,7 @@ fn DetermineAction(args: &CliArgs) -> Result<Action> {
 
     if listFlagsUsed && args.list.is_none() {
         bail!(
-            "--glob/--regex/--keyword-only/--path-only/--both/--within/--here/--max-depth/--json/--limit require --list."
+            "--glob/--fuzzy/--path/--any/--both/--within/--here/--max-depth/--json/--limit require --list."
         );
     }
 
@@ -348,7 +349,13 @@ fn DetermineAction(args: &CliArgs) -> Result<Action> {
         });
     }
 
-    if let Some(query) = args.list.as_ref() {
+    if let Some(listQuery) = args.list.as_ref() {
+        let query = if listQuery.is_empty() {
+            args.target.as_deref().unwrap_or(listQuery)
+        } else {
+            listQuery
+        };
+
         return BuildListAction(args, query);
     }
 
@@ -379,8 +386,8 @@ fn DetermineAction(args: &CliArgs) -> Result<Action> {
 }
 
 fn BuildListAction(args: &CliArgs, query: &str) -> Result<Action> {
-    if query.is_empty() && (args.listGlob || args.listRegex) {
-        bail!("Provide a query when using --glob or --regex with --list.");
+    if query.is_empty() && (args.listGlob || args.listFuzzy) {
+        bail!("Provide a query when using --glob or --fuzzy with --list.");
     }
 
     let scopeRoot = if let Some(path) = args.listWithin.as_ref() {
@@ -404,23 +411,48 @@ fn BuildListAction(args: &CliArgs, query: &str) -> Result<Action> {
         bail!("--max-depth requires --within or --here.");
     }
 
+    let caseSensitive = query.chars().any(char::is_uppercase);
+
     let mode = if args.listGlob {
         let pattern = Pattern::new(query)?;
 
-        SearchMode::Glob(pattern)
-    } else if args.listRegex {
-        let regex = RegexBuilder::new(query).case_insensitive(true).build()?;
+        SearchMode::Glob {
+            pattern,
+            caseSensitive,
+        }
+    } else if args.listFuzzy {
+        let pattern = FuzzyPattern::new(
+            query,
+            CaseMatching::Smart,
+            Normalization::Smart,
+            AtomKind::Fuzzy,
+        );
+
+        SearchMode::Fuzzy(pattern)
+    } else {
+        let regex = RegexBuilder::new(query)
+            .case_insensitive(!caseSensitive)
+            .build()
+            .with_context(|| format!("Invalid regular expression '{query}'"))?;
 
         SearchMode::Regex(regex)
+    };
+
+    let (matchKeyword, matchPath, requireBoth) = if args.listPath {
+        (false, true, false)
+    } else if args.listAny {
+        (true, true, false)
+    } else if args.listBoth {
+        (true, true, true)
     } else {
-        SearchMode::Substring(query.to_string())
+        (true, false, false)
     };
 
     Ok(Action::Search {
         query: query.to_string(),
-        matchKeyword: args.listKeywordOnly,
-        matchPath: args.listPathOnly,
-        requireBoth: args.listRequireBoth,
+        matchKeyword,
+        matchPath,
+        requireBoth,
         mode,
         outputJson: args.listJson,
         limit: args.listLimit,
@@ -835,7 +867,7 @@ _to() {
       '(-c --copy)'{-c,--copy}'[copy existing shortcut]:existing keyword:->keywords :new:' \
       '(-f --force)'{-f,--force}'[replace existing keyword or duplicate path]' \
       '(-r --rm)'{-r,--rm}'[remove shortcut]:keyword:->keywords' \
-      '(-p --print-path)'{-p,--print-path}'[print stored path]:target:->targets' \
+      '(-P --print-path)'{-P,--print-path}'[print stored path]:target:->targets' \
       '(-s --sort)'{-s,--sort}'[set sorting mode]:mode:(added alpha recent)' \
       '--show-sort[print current sorting mode]' \
       '--completions[generate completions for shell]:shell:(bash zsh fish)' \
@@ -846,10 +878,10 @@ _to() {
       '--write-completions[alias for write-default-completions]' \
       '--install-completions[alias for write-default-completions]' \
       '(-g --glob)'{-g,--glob}'[list: interpret query as glob]' \
-      '(-e --regex)'{-e,--regex}'[list: interpret query as regex]' \
-      '(-k --keyword-only)'{-k,--keyword-only}'[list: search keywords only]' \
-      '(-y --path-only)'{-y,--path-only}'[list: search paths only]' \
-      '(-B --both)'{-B,--both}'[list: require matches in keyword and path]' \
+      '(-F --fuzzy)'{-F,--fuzzy}'[list: fuzzy-match and rank by relevance]' \
+      '(-p --path -A --any -B --both)'{-p,--path}'[list: search paths only]' \
+      '(-p --path -A --any -B --both)'{-A,--any}'[list: search keywords or paths]' \
+      '(-p --path -A --any -B --both)'{-B,--both}'[list: require matches in keywords and paths]' \
       '(-w --within)'{-w,--within}'[list: scope to root]:path:_files -/' \
       '(-H --here)'{-H,--here}'[list: scope to current directory]' \
       '(-d --max-depth)'{-d,--max-depth}'[list: limit depth under scoped root]:depth:' \
@@ -941,10 +973,7 @@ fn WriteDefaultCompletions(shell: Shell) -> Result<()> {
 }
 
 fn LegacyToDetected() -> Result<bool> {
-    let output = Command::new("zsh")
-        .arg("-lc")
-        .arg("typeset -f to")
-        .output();
+    let output = Command::new("zsh").arg("-lc").arg("typeset -f to").output();
 
     let Ok(out) = output else {
         return Ok(false);

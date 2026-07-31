@@ -57,20 +57,20 @@ pub struct CliArgs {
     )]
     pub list: Option<String>,
 
-    #[arg(short = 'g', long = "glob", action = ArgAction::SetTrue, conflicts_with = "listRegex", help = "Treat list query as a glob pattern.")]
+    #[arg(short = 'g', long = "glob", action = ArgAction::SetTrue, conflicts_with = "listFuzzy", help = "Treat list query as a glob pattern.")]
     pub listGlob: bool,
 
-    #[arg(short = 'e', long = "regex", action = ArgAction::SetTrue, help = "Treat list query as a regular expression (case-insensitive).")]
-    pub listRegex: bool,
+    #[arg(short = 'F', long = "fuzzy", action = ArgAction::SetTrue, help = "Fuzzy-match and rank list results by relevance.")]
+    pub listFuzzy: bool,
 
-    #[arg(short = 'k', long = "keyword-only", action = ArgAction::SetTrue, help = "Search keywords only (with --list).")]
-    pub listKeywordOnly: bool,
+    #[arg(short = 'p', long = "path", action = ArgAction::SetTrue, conflicts_with_all = ["listAny", "listBoth"], help = "Search paths only (with --list).")]
+    pub listPath: bool,
 
-    #[arg(short = 'y', long = "path-only", action = ArgAction::SetTrue, help = "Search paths only (with --list).")]
-    pub listPathOnly: bool,
+    #[arg(short = 'A', long = "any", action = ArgAction::SetTrue, conflicts_with = "listBoth", help = "Search keywords or paths (with --list).")]
+    pub listAny: bool,
 
-    #[arg(short = 'B', long = "both", action = ArgAction::SetTrue, help = "Require matches on both keyword and path when both are searched.")]
-    pub listRequireBoth: bool,
+    #[arg(short = 'B', long = "both", action = ArgAction::SetTrue, help = "Require matches in both keywords and paths (with --list).")]
+    pub listBoth: bool,
 
     #[arg(
         short = 'w',
@@ -102,7 +102,7 @@ pub struct CliArgs {
     )]
     pub listLimit: Option<usize>,
 
-    #[arg(short = 'p', long = "print-path", action = ArgAction::SetTrue, help = "Print the resolved path for TARGET without changing directory.")]
+    #[arg(short = 'P', long = "print-path", action = ArgAction::SetTrue, help = "Print the resolved path for TARGET without changing directory.")]
     pub printPath: bool,
 
     #[arg(short = 'u', long = "cursor", action = ArgAction::SetTrue, help = "Open the target in Cursor after jumping.")]
