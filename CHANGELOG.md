@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0 - 07/30/2026
+
+- **Breaking:** Changed the default list query from literal substring matching to an unanchored regular expression, matching `fd` search semantics.
+- **Breaking:** List queries now search shortcut keywords by default. Use `-p/--path`, `-A/--any`, or `-B/--both` to select another field scope.
+- **Breaking:** Reassigned `-p` to path search and moved `--print-path` to `-P`.
+- Added smart-case matching to default regex, glob, and fuzzy searches.
+- Added `-F/--fuzzy` search with relevance ranking across keywords and paths.
+- Added Nucleo Matcher for Unicode-aware fuzzy matching and ranking.
+
 ## 0.8.3 - Dec 4, 2025
 
 - Patch version bump.

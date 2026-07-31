@@ -47,7 +47,7 @@ to --rm proj                             # remove
 - Recents tracking for `recent` sort mode.
 - Expiring shortcuts via `--expire <epoch>`.
 - Bulk add via glob patterns; copy keywords or retarget paths.
-- Search shortcuts by keyword and/or path with substring, glob, or regex matching.
+- Search shortcuts by keyword and/or path with smart-case regex, glob, or fuzzy matching.
 - Colorful, zsh-like output (disable with `--no-color` or `NO_COLOR=1`).
 - Shell completions with dynamic keyword/path suggestions.
 
@@ -58,8 +58,8 @@ to --rm proj                             # remove
 - `-c, --copy <existing> <new>`
 - `-f, --force` (with add/copy/bulk-add) to replace an existing keyword or skip duplicate-path confirmation
 - `-r, --remove <keyword>`
-- `-l, --list[=QUERY] [-g|--glob] [-e|--regex] [-k|--keyword-only] [-y|--path-only] [-B|--both] [-w|--within <path> | -H|--here] [-d|--max-depth N] [-j|--json] [-n|--limit N]`
-- `-p, --print-path <target>`
+- `-l, --list[=QUERY] [-g|--glob | -F|--fuzzy] [-p|--path | -A|--any | -B|--both] [-w|--within <path> | -H|--here] [-d|--max-depth N] [-j|--json] [-n|--limit N]`
+- `-P, --print-path <target>`
 - `-u, --cursor` (open in Cursor) or `-C, --code` (open in VS Code) — mutually exclusive
 - `-N, --no-create`
 - `-s, --sort added|alpha|recent` (and `--show-sort`)
@@ -113,11 +113,25 @@ Zsh uses dynamic completion hooks for path-aware keyword + subpath behavior.
 
 ## Search
 
-- `to --list QUERY` searches keywords and paths with case-insensitive substring matching by default; omit QUERY to list everything.
-- Scope fields with `-k/--keyword-only` or `-y/--path-only`; combine with `-B/--both` to require matches in both.
+- `to --list QUERY` searches shortcut keywords with an unanchored regular expression by default; omit QUERY to list everything.
+- Default regex, glob, and fuzzy matching use smart case: an all-lowercase query is case-insensitive, while any uppercase character makes the query case-sensitive.
+- Change fields with `-p/--path` for paths only, `-A/--any` for keyword or path, or `-B/--both` to require matches in both.
 - Scope results to a root with `-w/--within <path>` or `-H/--here`, and limit depth with `-d/--max-depth N` (0 = root only).
-- Pattern modes: substring (default), `-g/--glob`, or `-e/--regex` (case-insensitive). Quote patterns to avoid shell expansion.
+- Pattern modes: regex (default), `-g/--glob`, or `-F/--fuzzy`.
+- Fuzzy search ranks keyword matches ahead of path-only matches, then prefers exact, prefix, and substring matches before other subsequence matches.
+- Quote regex and glob patterns to prevent the shell from expanding them before `to` receives them.
 - Output as JSON with `-j/--json`; limit rows with `-n/--limit`.
+
+```bash
+to --list go                       # regex: matches "goto"
+to --list '^go'                    # regex: starts with "go"
+to --list 'g.*t'                   # regex: "g" followed later by "t"
+to --list --glob '*go*'            # glob: contains "go"
+to --list --fuzzy gt               # fuzzy: ranked subsequence match
+to --list doc --path               # regex: search stored paths only
+to --list doc --any                # regex: search keyword or path
+to --list doc --both               # regex: require keyword and path
+```
 
 ## MSRV
 
